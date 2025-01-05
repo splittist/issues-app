@@ -1,3 +1,4 @@
+//@ts-ignore
 import React, { useState, ChangeEvent, FormEvent } from 'react';
 import { saveAs } from 'file-saver';
 import { Document, 

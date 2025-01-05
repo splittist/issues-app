@@ -1,3 +1,4 @@
+//@ts-ignore
 import React from 'react';
 import { useDrag, useDrop, DropTargetMonitor } from 'react-dnd';
 import { IconButton } from '@fluentui/react';
