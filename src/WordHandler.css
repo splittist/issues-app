@@ -1,0 +1,24 @@
+.dropzone {
+  border: 2px dashed #0078d4;
+  border-radius: 0.5em;
+  padding: 2em;
+  margin: 2em 0;
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 300ms ease;
+}
+
+.dropzone.active {
+  background-color: #e6f7ff;
+}
+
+.filename {
+  display: flex;
+  align-items: left;
+  justify-content: space-between;
+}
+
+.file-list {
+  list-style-type: none;
+  padding: 0;
+}
