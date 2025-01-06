@@ -11,7 +11,6 @@
   },
   "dependencies": {
     "@fluentui/react": "^8.122.3",
-    "@types/react-dnd": "^2.0.36",
     "docx": "^9.1.0",
     "file-saver": "^2.0.5",
     "react": "^18.3.1",

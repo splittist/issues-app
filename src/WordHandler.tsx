@@ -1,5 +1,4 @@
-// @ts-ignore
-import React, { useState, ChangeEvent, FormEvent } from 'react';
+import React, { useState, FormEvent } from 'react';
 import { saveAs } from 'file-saver';
 import { Document, 
   Packer, 
@@ -8,7 +7,7 @@ import { Document,
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
 import { initializeIcons } from '@fluentui/font-icons-mdl2';
-import { Checkbox, Stack, TextField, PrimaryButton, } from '@fluentui/react';
+import { Checkbox, Stack, Label, PrimaryButton, TextField, } from '@fluentui/react';
 import { useDropzone } from 'react-dropzone';
 
 import FileItem from './FileItem';
@@ -51,8 +50,8 @@ const WordHandler: React.FC = () => {
    * Handles output file name change event.
    * @param event - The event object.
    */
-  const handleOutputFileNameChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setOutputFileName(event.target.value);
+  const handleOutputFileNameChange = (_ev?: FormEvent<HTMLElement | HTMLInputElement>, newValue?: string) => {
+    setOutputFileName(newValue || '');
   };
 
   /**
@@ -113,7 +112,8 @@ const WordHandler: React.FC = () => {
           <Checkbox label="Includes square brackets" name="squareBrackets" checked={criteria.squareBrackets} onChange={handleCriteriaChange} />
           <Checkbox label="Includes comments" name="comments" checked={criteria.comments} onChange={handleCriteriaChange} />
         </Stack>
-        <TextField label="Output File Name" value={outputFileName} onChange={handleOutputFileNameChange} />
+        <Label>Output File Name</Label>
+        <TextField value={outputFileName} onChange={handleOutputFileNameChange} />
         <PrimaryButton text="Save file" onClick={handleSaveFile} />
       </Stack>
     </DndProvider>

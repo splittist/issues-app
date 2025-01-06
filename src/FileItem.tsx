@@ -1,4 +1,3 @@
-// @ts-ignore
 import React from 'react';
 import { useDrag, useDrop, DropTargetMonitor } from 'react-dnd';
 import { IconButton } from '@fluentui/react';
@@ -11,6 +10,11 @@ interface FileItemProps {
   index: number;
   moveFile: (dragIndex: number, hoverIndex: number) => void;
   removeFile: (index: number) => void;
+}
+
+interface DragItem {
+  type: string;
+  index: number;
 }
 
 /**
@@ -26,11 +30,11 @@ const FileItem: React.FC<FileItemProps> = ({ file, index, moveFile, removeFile }
 
   const [, drop] = useDrop({
     accept: 'file',
-    hover(item: {index: number }, monitor: DropTargetMonitor) {
+    hover(item: unknown, monitor: DropTargetMonitor) {
       if (!ref.current) {
         return;
       }
-      const dragIndex = item.index;
+      const dragIndex = (item as DragItem).index;
       const hoverIndex = index;
 
       if (dragIndex === hoverIndex) {
@@ -40,7 +44,8 @@ const FileItem: React.FC<FileItemProps> = ({ file, index, moveFile, removeFile }
       const hoverBoundingRect = ref.current.getBoundingClientRect();
       const hoverMiddleY = (hoverBoundingRect.bottom - hoverBoundingRect.top) / 2;
       const clientOffset = monitor.getClientOffset();
-      const hoverClientY = clientOffset.y - hoverBoundingRect.top;
+      const clientOffsetY = clientOffset?.y || 0 ;
+      const hoverClientY = clientOffsetY - hoverBoundingRect.top;
 
       if (dragIndex < hoverIndex && hoverClientY < hoverMiddleY) {
         return;
@@ -51,7 +56,7 @@ const FileItem: React.FC<FileItemProps> = ({ file, index, moveFile, removeFile }
       }
 
       moveFile(dragIndex, hoverIndex);
-      item.index = hoverIndex;
+      (item as DragItem).index = hoverIndex;
     },
   });
 
