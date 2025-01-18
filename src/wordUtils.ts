@@ -323,6 +323,9 @@ const paragraphIsInteresting = (paragraph: Element, criteria: Criteria): boolean
  * @returns An object containing the run properties.
  */
 const buildRunProps = (runPropsElement: Element, style: string = ''): IRunOptions => {
+  if (!runPropsElement) {
+    return {};
+  };
   const bold = runPropsElement.getElementsByTagName('w:b').length > 0;
   const italics = runPropsElement.getElementsByTagName('w:i').length > 0;
   const allCaps = runPropsElement.getElementsByTagName('w:caps').length > 0;
