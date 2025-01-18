@@ -1,7 +1,3 @@
-# Instant Issues List
-
-Create issues lists from marked-up documents.
-
 # ToDo
 
 * Include comment details - and status
