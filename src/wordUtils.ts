@@ -69,6 +69,19 @@ const extractCommentIds = (paragraph: Element):string[] => {
     .filter(id => id !== '');
 };
 
+const buildCommentHeadline = (commentElement: Element): Paragraph => {
+  const id = commentElement.getAttribute('w:id') || '?';
+  const person = commentElement.getAttribute('w:initials') || commentElement.getAttribute('w:author') || '';
+  return new Paragraph({
+    children: [
+      new TextRun({text: `Comment ${id}`, italics: true}),
+      new TextRun({text: ' by '}),
+      new TextRun({text: person, bold: true}),
+      new TextRun({text: ':'}),
+    ],
+  });
+}
+
 /**
  * Builds comments from given comment IDs and XML comments document.
  * @param ids - An array of comment IDs.
@@ -83,8 +96,11 @@ const buildComments = (ids: string[], xmlComments: globalThis.Document): (Paragr
   });
 
   return commentElements.flatMap(element => {
-    const paragraphs = element?.getElementsByTagName('w:p');
-    return paragraphs ? Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph)) : [null];
+    if (!element) return [null];
+    const commentHeadline = buildCommentHeadline(element);
+    const paragraphElements = element.getElementsByTagName('w:p');
+    const paragraphs = paragraphElements ? Array.from(paragraphElements).map(paragraph => buildDocumentParagraph(paragraph)) : [null];
+    return [commentHeadline, ...paragraphs];
   })
 };
 
@@ -156,6 +172,21 @@ const getNumberingDocument = async (zip: JSZip): Promise<globalThis.Document | n
 }
 
 /**
+ * Retrieves the styles document from the given zip file.
+ * @param zip - The JSZip object representing the .docx file.
+ * @returns A promise that resolves to the styles document or null.
+ */
+const getStylesDocument = async (zip: JSZip): Promise<globalThis.Document | null> => {
+  const stylesXml = await zip.file('word/styles.xml')?.async('string');
+  if (!stylesXml) {
+    return null;
+  }
+
+  const stylesParser = new DOMParser();
+  return stylesParser.parseFromString(stylesXml, 'application/xml');
+};
+
+/**
  * Converts a number to a lowercase letter representation.
  * @param num - The number to convert.
  * @returns The lowercase letter representation of the number.
@@ -194,7 +225,7 @@ const toLowerRoman = (num: number): string => {
  * @param format - The format to apply.
  * @returns The formatted number as a string.
  */
-const formatNumber = (num: number, format: string): string => {
+const formatNumber = (num: number, format: string | null): string => {
   switch (format) {
     case 'decimal':
       return num.toString();
@@ -243,6 +274,29 @@ const buildNumberingMaps = (numberingDoc: globalThis.Document) => {
 };
 
 /**
+ * Builds a map from style IDs to abstractNumIds.
+ * @param stylesDoc - The XML document containing styles information.
+ * @returns A map from style IDs to abstractNumIds.
+ */
+const buildStyleToAbstractNumIdMap = (stylesDoc: globalThis.Document): Map<string, string> => {
+  const styleToAbstractNumId = new Map<string, string>();
+  const styleElements = stylesDoc.getElementsByTagName('w:style');
+
+  for (const styleElement of Array.from(styleElements)) {
+    const styleId = styleElement.getAttribute('w:styleId');
+    const numIdElement = styleElement.getElementsByTagName('w:numId')[0];
+    if (styleId && numIdElement) {
+      const numId = numIdElement.getAttribute('w:val');
+      if (numId) {
+        styleToAbstractNumId.set(styleId, numId);
+      }
+    }
+  }
+
+  return styleToAbstractNumId;
+};
+
+/**
  * Initializes counters for numbering levels.
  * @param maxLevels - The maximum number of levels.
  * @returns An array of counters initialized to 0.
@@ -270,15 +324,33 @@ const updateCounters = (counters: number[], ilvl: number) => {
  * @param paragraphElement - The XML element representing the paragraph.
  * @param numIdToAbstractNumId - Map of numId to abstractNumId.
  * @param abstractNumIdToFormat - Map of abstractNumId to format.
+ * @param styleToAbstractNumId - Map of style IDs to abstractNumIds.
  * @param counters - The current counters.
  * @returns The numbering as a string or null.
  */
-const trackNumbering = (paragraphElement: Element, numIdToAbstractNumId: Map<string, string>, abstractNumIdToFormat: Map<string, { numFmt: string, lvlText: string }[]>, counters: number[]) => {
+const trackNumbering = (paragraphElement: Element, 
+                        numIdToAbstractNumId: Map<string, string>, 
+                        abstractNumIdToFormat: Map<string, { numFmt: string, lvlText: string }[]>, 
+                        styleToAbstractNumId: Map<string, string>,
+                        counters: number[]) => {
   const numPrElement = paragraphElement.getElementsByTagName('w:numPr')[0];
-  if (!numPrElement) return null;
+  let numId: string | null = null;
+  let ilvl: string | null = null;
 
-  const numId = numPrElement.getElementsByTagName('w:numId')[0]?.getAttribute('w:val');
-  const ilvl = numPrElement.getElementsByTagName('w:ilvl')[0]?.getAttribute('w:val');
+  if (numPrElement) {
+    numId = numPrElement.getElementsByTagName('w:numId')[0]?.getAttribute('w:val');
+    ilvl = numPrElement.getElementsByTagName('w:ilvl')[0]?.getAttribute('w:val');
+  }
+
+  if (!numId) {
+    const pStyleElement = paragraphElement.getElementsByTagName('w:pStyle')[0];
+    const styleId = pStyleElement?.getAttribute('w:val');
+    if (styleId) {
+      numId = styleToAbstractNumId.get(styleId || '') || null;
+      ilvl = '0'; // Default to level 0 if using style-based numbering
+    }
+  }
+
   if (!numId || !ilvl) return null;
 
   const abstractNumId = numIdToAbstractNumId.get(numId);
@@ -287,9 +359,8 @@ const trackNumbering = (paragraphElement: Element, numIdToAbstractNumId: Map<str
   const formats = abstractNumIdToFormat.get(abstractNumId);
   if (!formats) return null;
 
-  // const format = formats[parseInt(ilvl, 10)];
   counters = updateCounters(counters, parseInt(ilvl, 10));
-  const numbering = counters.slice(0, parseInt(ilvl, 10) + 1).map((num, index) => formatNumber(num, formats[index].numFmt)).join('.');
+  const numbering = counters.slice(0, parseInt(ilvl, 10) + 1).map((num, index) => formatNumber(num, formats[index]?.numFmt)).join('.');
   return numbering;
 };
 
@@ -380,6 +451,8 @@ const buildTextRun = (runElement: Element, style: string = ''): TextRun => {
         return new Break();
       case 'w:tab':
         return new Tab();
+      case 'w:commentReference':
+        return `[Comment ${(child as Element).getAttribute('w:id')}]`;
       default:
         return null;
     }
@@ -403,10 +476,12 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
   const documentXml = await getMainDocument(zip);
   const commentsXml = await getCommentsDocument(zip);
   const numberingXml = await getNumberingDocument(zip);
+  const stylesXml = await getStylesDocument(zip);
 
   const allParagaphs = Array.from(documentXml.getElementsByTagName('w:p'));
 
   const { numIdToAbstractNumId, abstractNumIdToFormat } = numberingXml ? buildNumberingMaps(numberingXml) : { numIdToAbstractNumId: new Map<string, string>(), abstractNumIdToFormat: new Map<string, { numFmt: string, lvlText: string }[]>() };
+  const styleToAbstractNumId = stylesXml ? buildStyleToAbstractNumIdMap(stylesXml) : new Map<string, string>();
 
   let currentSection = 1;
   let currentPage = 1;
@@ -424,7 +499,7 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
       currentPage++;
     }
 
-    let numberingInfo = numberingXml ? trackNumbering(paragraphElement, numIdToAbstractNumId, abstractNumIdToFormat, counters) : undefined;
+    let numberingInfo = numberingXml ? trackNumbering(paragraphElement, numIdToAbstractNumId, abstractNumIdToFormat, styleToAbstractNumId, counters) : undefined;
 
     if (!numberingInfo && previousNumberingInfo) {
       numberingInfo = previousNumberingInfo;
