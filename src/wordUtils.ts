@@ -289,7 +289,12 @@ const trackNumbering = (paragraphElement: Element, numIdToAbstractNumId: Map<str
 
   // const format = formats[parseInt(ilvl, 10)];
   counters = updateCounters(counters, parseInt(ilvl, 10));
-  const numbering = counters.slice(0, parseInt(ilvl, 10) + 1).map((num, index) => formatNumber(num, formats[index].numFmt)).join('.');
+  const numbering = counters.slice(0, parseInt(ilvl, 10) + 1)
+      .map((num, index) => {
+          const fmt = formats[index]?.numFmt || 'decimal';
+          return formatNumber(num, fmt));
+       })
+    .join('.');
   return numbering;
 };
 
@@ -636,3 +641,4 @@ export const buildStyles = () => {
     ],
   }
 }
+
