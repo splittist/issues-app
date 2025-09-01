@@ -4,7 +4,8 @@ import { Criteria,
     IRunContent,
     Break,
     HLColor,
-    ULType, 
+    ULType,
+    ParagraphSource,
     } from "./types";
 import { Paragraph, 
     ParagraphChild, 
@@ -141,10 +142,49 @@ const getEndnotesDocument = async (zip: JSZip): Promise<globalThis.Document> => 
 */
 
 /**
- * Retrieves the numbering document from the given zip file.
+ * Retrieves header documents from the given zip file.
  * @param zip - The JSZip object representing the .docx file.
- * @returns A promise that resolves to the numbering document or null.
+ * @returns A promise that resolves to an array of header documents.
  */
+const getHeaderDocuments = async (zip: JSZip): Promise<globalThis.Document[]> => {
+  const headerDocs: globalThis.Document[] = [];
+  const parser = new DOMParser();
+  
+  // Check for headers (header1.xml, header2.xml, etc.)
+  let headerIndex = 1;
+  while (true) {
+    const headerXml = await zip.file(`word/header${headerIndex}.xml`)?.async('string');
+    if (!headerXml) break;
+    
+    const headerDoc = parser.parseFromString(headerXml, 'application/xml');
+    headerDocs.push(headerDoc);
+    headerIndex++;
+  }
+  
+  return headerDocs;
+}
+
+/**
+ * Retrieves footer documents from the given zip file.
+ * @returns A promise that resolves to an array of footer documents.
+ */
+const getFooterDocuments = async (zip: JSZip): Promise<globalThis.Document[]> => {
+  const footerDocs: globalThis.Document[] = [];
+  const parser = new DOMParser();
+  
+  // Check for footers (footer1.xml, footer2.xml, etc.)
+  let footerIndex = 1;
+  while (true) {
+    const footerXml = await zip.file(`word/footer${footerIndex}.xml`)?.async('string');
+    if (!footerXml) break;
+    
+    const footerDoc = parser.parseFromString(footerXml, 'application/xml');
+    footerDocs.push(footerDoc);
+    footerIndex++;
+  }
+  
+  return footerDocs;
+}
 const getNumberingDocument = async (zip: JSZip): Promise<globalThis.Document | null> => {
   const numberingXml = await zip.file('word/numbering.xml')?.async('string');
   if (!numberingXml) {
@@ -397,6 +437,42 @@ const buildTextRun = (runElement: Element, style: string = ''): TextRun => {
 };
 
 /**
+ * Processes paragraphs from a document (header or footer) and extracts interesting ones.
+ * @param document - The XML document to process.
+ * @param criteria - The criteria to filter paragraphs.
+ * @param commentsXml - The comments document.
+ * @param source - The source type ('header' or 'footer').
+ * @param sectionNumber - The section number these paragraphs belong to.
+ * @returns An array of extracted paragraphs.
+ */
+const processDocumentParagraphs = (
+  document: globalThis.Document,
+  criteria: Criteria,
+  commentsXml: globalThis.Document | null,
+  source: ParagraphSource,
+  sectionNumber: number
+): ExtractedParagraph[] => {
+  const paragraphs = Array.from(document.getElementsByTagName('w:p'));
+  const extractedParagraphs: ExtractedParagraph[] = [];
+
+  for (const paragraphElement of paragraphs) {
+    if (paragraphIsInteresting(paragraphElement, criteria)) {
+      const commentIds = extractCommentIds(paragraphElement);
+      const comments = commentsXml ? buildComments(commentIds, commentsXml) : [];
+      const documentParagraph = buildDocumentParagraph(paragraphElement);
+
+      extractedParagraphs.push({
+        paragraph: documentParagraph,
+        comments,
+        section: sectionNumber,
+        source,
+      });
+    }
+  }
+
+  return extractedParagraphs;
+};
+/**
  * Extracts paragraphs from a given file based on the specified criteria.
  * @param file - The file to extract paragraphs from.
  * @param criteria - The criteria to filter paragraphs.
@@ -408,6 +484,8 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
   const documentXml = await getMainDocument(zip);
   const commentsXml = await getCommentsDocument(zip);
   const numberingXml = await getNumberingDocument(zip);
+  const headerDocs = await getHeaderDocuments(zip);
+  const footerDocs = await getFooterDocuments(zip);
 
   const allParagaphs = Array.from(documentXml.getElementsByTagName('w:p'));
 
@@ -420,6 +498,7 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
 
   const interestingParagraphs: ExtractedParagraph[] = [];
 
+  // Process main document paragraphs
   for (const paragraphElement of allParagaphs) {
     if (paragraphElement.getElementsByTagName('w:sectPr').length > 0) {
       currentSection++;
@@ -446,6 +525,7 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
         section: numberingInfo ? undefined : currentSection,
         page: numberingInfo ? undefined : currentPage,
         numbering: numberingInfo ? numberingInfo : undefined,
+        source: 'document',
       });
     }
 
@@ -453,6 +533,40 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
       previousNumberingInfo = numberingInfo;
     }
   }
+
+  // Process header paragraphs for each section
+  // Reset section counter for headers/footers processing
+  let sectionForHeaders = 1;
+  for (const paragraphElement of allParagaphs) {
+    if (paragraphElement.getElementsByTagName('w:sectPr').length > 0) {
+      // Process headers and footers for this section
+      for (const headerDoc of headerDocs) {
+        const headerParagraphs = processDocumentParagraphs(headerDoc, criteria, commentsXml, 'header', sectionForHeaders);
+        interestingParagraphs.push(...headerParagraphs);
+      }
+      
+      for (const footerDoc of footerDocs) {
+        const footerParagraphs = processDocumentParagraphs(footerDoc, criteria, commentsXml, 'footer', sectionForHeaders);
+        interestingParagraphs.push(...footerParagraphs);
+      }
+      
+      sectionForHeaders++;
+    }
+  }
+
+  // Process headers/footers for the final section if no section breaks were found
+  if (sectionForHeaders === 1) {
+    for (const headerDoc of headerDocs) {
+      const headerParagraphs = processDocumentParagraphs(headerDoc, criteria, commentsXml, 'header', 1);
+      interestingParagraphs.push(...headerParagraphs);
+    }
+    
+    for (const footerDoc of footerDocs) {
+      const footerParagraphs = processDocumentParagraphs(footerDoc, criteria, commentsXml, 'footer', 1);
+      interestingParagraphs.push(...footerParagraphs);
+    }
+  }
+
   return interestingParagraphs;
 };
 
@@ -522,14 +636,21 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
                                   text: "Ref",
                                   style: 'Strong',
                     })],
-                      width: { size: 10, type:WidthType.PERCENTAGE },
+                      width: { size: 8, type:WidthType.PERCENTAGE },
+                    }),
+                    new TableCell({
+                      children: [new Paragraph({
+                                  text: "Source",
+                                  style: 'Strong',
+                    })],
+                      width: { size: 7, type:WidthType.PERCENTAGE },
                     }),
                     new TableCell({
                       children: [new Paragraph({
                                   text: "Paragraph",
                                   style: 'Strong',
                     })],
-                      width: { size: 45, type:WidthType.PERCENTAGE },
+                      width: { size: 40, type:WidthType.PERCENTAGE },
                     }),
                     new TableCell({
                       children: [new Paragraph({
@@ -540,11 +661,14 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
                     }),
                   ],
                 }),
-                ...paragraphGroup.map(({ paragraph, comments, section, page, numbering }) => {
+                ...paragraphGroup.map(({ paragraph, comments, section, page, numbering, source }) => {
                   return new TableRow({
                     children: [
                       new TableCell({
                         children: [new Paragraph(numbering || `Sect ${section}, p ${page}`)],
+                      }),
+                      new TableCell({
+                        children: [new Paragraph(source.charAt(0).toUpperCase() + source.slice(1))],
                       }),
                       new TableCell({
                         children: [paragraph,]
