@@ -28,6 +28,11 @@ export interface Criteria {
 }
 
 /**
+ * Type representing the source of a paragraph.
+ */
+export type ParagraphSource = 'document' | 'header' | 'footer';
+
+/**
  * Interface representing an extracted paragraph.
  */
 export interface ExtractedParagraph {
@@ -36,6 +41,7 @@ export interface ExtractedParagraph {
   section?: number;
   page?: number;
   numbering?: string;
+  source: ParagraphSource;
 }
 
 /**
