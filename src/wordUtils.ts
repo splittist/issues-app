@@ -625,7 +625,7 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
 
       interestingParagraphs.push({
         paragraph: documentParagraph,
-        comments,
+        comments: allComments,
         section: numberingInfo ? undefined : currentSection,
         page: numberingInfo ? undefined : currentPage,
         numbering: numberingInfo ? numberingInfo : undefined,
