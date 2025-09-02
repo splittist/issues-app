@@ -23,7 +23,7 @@ initializeIcons(); // For checkmark icon
  */
 const WordHandler: React.FC = () => {
   const [files, setFiles] = useState<File[]>([]);
-  const [criteria, setCriteria] = useState<Criteria>({ redline: true, highlight: false, squareBrackets: false, comments: false });
+  const [criteria, setCriteria] = useState<Criteria>({ redline: true, highlight: false, squareBrackets: false, comments: false, footnotes: false, endnotes: false });
   const [outputFileName, setOutputFileName] = useState<string>('report_' + dateToday() + '.docx');
 
   /**
@@ -111,6 +111,8 @@ const WordHandler: React.FC = () => {
           <Checkbox label="Includes highlighted text" name="highlight" checked={criteria.highlight} onChange={handleCriteriaChange} />
           <Checkbox label="Includes square brackets" name="squareBrackets" checked={criteria.squareBrackets} onChange={handleCriteriaChange} />
           <Checkbox label="Includes comments" name="comments" checked={criteria.comments} onChange={handleCriteriaChange} />
+          <Checkbox label="Includes footnotes" name="footnotes" checked={criteria.footnotes} onChange={handleCriteriaChange} />
+          <Checkbox label="Includes endnotes" name="endnotes" checked={criteria.endnotes} onChange={handleCriteriaChange} />
         </Stack>
         <Label>Output File Name</Label>
         <TextField value={outputFileName} onChange={handleOutputFileNameChange} />
