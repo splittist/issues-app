@@ -23,6 +23,8 @@ export interface Criteria {
   highlight: boolean;
   squareBrackets: boolean;
   comments: boolean;
+  footnotes: boolean;
+  endnotes: boolean;
 }
 
 /**

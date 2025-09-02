@@ -71,6 +71,30 @@ const extractCommentIds = (paragraph: Element):string[] => {
 };
 
 /**
+ * Extracts footnote IDs from a given paragraph element.
+ * @param paragraph - The XML element representing the paragraph.
+ * @returns An array of footnote IDs.
+ */
+const extractFootnoteIds = (paragraph: Element):string[] => {
+  const footnoteRefs = paragraph.getElementsByTagName('w:footnoteReference');
+  return Array.from(footnoteRefs)
+    .map(ref => ref.getAttribute('w:id') || '')
+    .filter(id => id !== '');
+};
+
+/**
+ * Extracts endnote IDs from a given paragraph element.
+ * @param paragraph - The XML element representing the paragraph.
+ * @returns An array of endnote IDs.
+ */
+const extractEndnoteIds = (paragraph: Element):string[] => {
+  const endnoteRefs = paragraph.getElementsByTagName('w:endnoteReference');
+  return Array.from(endnoteRefs)
+    .map(ref => ref.getAttribute('w:id') || '')
+    .filter(id => id !== '');
+};
+
+/**
  * Builds comments from given comment IDs and XML comments document.
  * @param ids - An array of comment IDs.
  * @param xmlComments - The XML document containing comments.
@@ -84,6 +108,44 @@ const buildComments = (ids: string[], xmlComments: globalThis.Document): (Paragr
   });
 
   return commentElements.flatMap(element => {
+    const paragraphs = element?.getElementsByTagName('w:p');
+    return paragraphs ? Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph)) : [null];
+  })
+};
+
+/**
+ * Builds footnotes from given footnote IDs and XML footnotes document.
+ * @param ids - An array of footnote IDs.
+ * @param xmlFootnotes - The XML document containing footnotes.
+ * @returns An array of Paragraph objects or null.
+ */
+const buildFootnotes = (ids: string[], xmlFootnotes: globalThis.Document): (Paragraph | null)[] => {
+  const namespaceURI = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+  const footnoteElements = ids.map(id => {
+    const footnotes = xmlFootnotes.getElementsByTagNameNS(namespaceURI,'footnote');
+    return Array.from(footnotes).find(footnote => footnote.getAttribute('w:id') === id);
+  });
+
+  return footnoteElements.flatMap(element => {
+    const paragraphs = element?.getElementsByTagName('w:p');
+    return paragraphs ? Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph)) : [null];
+  })
+};
+
+/**
+ * Builds endnotes from given endnote IDs and XML endnotes document.
+ * @param ids - An array of endnote IDs.
+ * @param xmlEndnotes - The XML document containing endnotes.
+ * @returns An array of Paragraph objects or null.
+ */
+const buildEndnotes = (ids: string[], xmlEndnotes: globalThis.Document): (Paragraph | null)[] => {
+  const namespaceURI = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+  const endnoteElements = ids.map(id => {
+    const endnotes = xmlEndnotes.getElementsByTagNameNS(namespaceURI,'endnote');
+    return Array.from(endnotes).find(endnote => endnote.getAttribute('w:id') === id);
+  });
+
+  return endnoteElements.flatMap(element => {
     const paragraphs = element?.getElementsByTagName('w:p');
     return paragraphs ? Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph)) : [null];
   })
@@ -119,27 +181,35 @@ const getCommentsDocument = async (zip: JSZip): Promise<globalThis.Document | nu
   return commentParser.parseFromString(commentsXml, 'application/xml');
 }
 
-/*
-const getFootnotesDocument = async (zip: JSZip): Promise<globalThis.Document> => {
+/**
+ * Retrieves the footnotes document from the given zip file.
+ * @param zip - The JSZip object representing the .docx file.
+ * @returns A promise that resolves to the footnotes document or null.
+ */
+const getFootnotesDocument = async (zip: JSZip): Promise<globalThis.Document | null> => {
   const footnotesXml = await zip.file('word/footnotes.xml')?.async('string');
   if (!footnotesXml) {
-    throw new Error('footnotes.xml not found in the .docx file')
+    return null;
   }
 
   const footnotesParser = new DOMParser();
   return footnotesParser.parseFromString(footnotesXml, 'application/xml');
 }
 
-const getEndnotesDocument = async (zip: JSZip): Promise<globalThis.Document> => { 
+/**
+ * Retrieves the endnotes document from the given zip file.
+ * @param zip - The JSZip object representing the .docx file.
+ * @returns A promise that resolves to the endnotes document or null.
+ */
+const getEndnotesDocument = async (zip: JSZip): Promise<globalThis.Document | null> => { 
   const endnotesXml = await zip.file('word/endnotes.xml')?.async('string');
   if (!endnotesXml) {
-    throw new Error('endnotes.xml not found in the .docx file')
+    return null;
   }
 
   const endnotesParser = new DOMParser();
   return endnotesParser.parseFromString(endnotesXml, 'application/xml');
 }
-*/
 
 /**
  * Retrieves header documents from the given zip file.
@@ -185,6 +255,13 @@ const getFooterDocuments = async (zip: JSZip): Promise<globalThis.Document[]> =>
   
   return footerDocs;
 }
+
+/**
+ * Retrieves the numbering document from the given zip file.
+ * @param zip - The JSZip object representing the .docx file.
+ * @returns A promise that resolves to the numbering document or null.
+ */
+
 const getNumberingDocument = async (zip: JSZip): Promise<globalThis.Document | null> => {
   const numberingXml = await zip.file('word/numbering.xml')?.async('string');
   if (!numberingXml) {
@@ -347,6 +424,8 @@ const trackNumbering = (paragraphElement: Element, numIdToAbstractNumId: Map<str
 const paragraphIsInteresting = (paragraph: Element, criteria: Criteria): boolean => {
     const redline = paragraph.getElementsByTagName('w:del').length > 0 || paragraph.getElementsByTagName('w:ins').length > 0 || paragraph.getElementsByTagName('w:moveFrom').length > 0 || paragraph.getElementsByTagName('w:moveTo').length > 0;
     const comments = paragraph.getElementsByTagName('w:commentRangeStart').length > 0;
+    const footnotes = paragraph.getElementsByTagName('w:footnoteReference').length > 0;
+    const endnotes = paragraph.getElementsByTagName('w:endnoteReference').length > 0;
     const highlight = paragraph.getElementsByTagName('w:highlight').length > 0;
     
     const textRuns = Array.from(paragraph.getElementsByTagName('w:r')).map(run => {
@@ -357,6 +436,8 @@ const paragraphIsInteresting = (paragraph: Element, criteria: Criteria): boolean
   
     return ((criteria.redline && redline) ||
             (criteria.comments && comments) ||
+            (criteria.footnotes && footnotes) ||
+            (criteria.endnotes && endnotes) ||
             (criteria.highlight && highlight) ||
             (criteria.squareBrackets && squareBrackets));
     };
@@ -472,6 +553,7 @@ const processDocumentParagraphs = (
 
   return extractedParagraphs;
 };
+
 /**
  * Extracts paragraphs from a given file based on the specified criteria.
  * @param file - The file to extract paragraphs from.
@@ -483,9 +565,11 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
   const zip = await JSZip.loadAsync(arrayBuffer);
   const documentXml = await getMainDocument(zip);
   const commentsXml = await getCommentsDocument(zip);
-  const numberingXml = await getNumberingDocument(zip);
   const headerDocs = await getHeaderDocuments(zip);
   const footerDocs = await getFooterDocuments(zip);
+  const footnotesXml = await getFootnotesDocument(zip);
+  const endnotesXml = await getEndnotesDocument(zip);
+  const numberingXml = await getNumberingDocument(zip);
 
   const allParagaphs = Array.from(documentXml.getElementsByTagName('w:p'));
 
@@ -499,6 +583,7 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
   const interestingParagraphs: ExtractedParagraph[] = [];
 
   // Process main document paragraphs
+
   for (const paragraphElement of allParagaphs) {
     if (paragraphElement.getElementsByTagName('w:sectPr').length > 0) {
       currentSection++;
@@ -516,7 +601,26 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
 
     if (paragraphIsInteresting(paragraphElement, criteria)) {
       const commentIds = extractCommentIds(paragraphElement);
-      const comments = commentsXml ? buildComments(commentIds, commentsXml) : [];
+      const footnoteIds = extractFootnoteIds(paragraphElement);
+      const endnoteIds = extractEndnoteIds(paragraphElement);
+      
+      let allComments: (Paragraph | null)[] = [];
+      
+      // Add comments
+      if (commentsXml && commentIds.length > 0) {
+        allComments = [...allComments, ...buildComments(commentIds, commentsXml)];
+      }
+      
+      // Add footnotes
+      if (footnotesXml && footnoteIds.length > 0) {
+        allComments = [...allComments, ...buildFootnotes(footnoteIds, footnotesXml)];
+      }
+      
+      // Add endnotes
+      if (endnotesXml && endnoteIds.length > 0) {
+        allComments = [...allComments, ...buildEndnotes(endnoteIds, endnotesXml)];
+      }
+      
       const documentParagraph = buildDocumentParagraph(paragraphElement);
 
       interestingParagraphs.push({
