@@ -292,7 +292,7 @@ const trackNumbering = (paragraphElement: Element, numIdToAbstractNumId: Map<str
   const numbering = counters.slice(0, parseInt(ilvl, 10) + 1)
       .map((num, index) => {
           const fmt = formats[index]?.numFmt || 'decimal';
-          return formatNumber(num, fmt));
+          return formatNumber(num, fmt);
        })
     .join('.');
   return numbering;
