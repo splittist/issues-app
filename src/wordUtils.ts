@@ -704,30 +704,33 @@ const processDocumentParagraphs = (
 
   for (const paragraphElement of paragraphs) {
     if (paragraphIsInteresting(paragraphElement, criteria)) {
-      const commentIds = extractCommentIds(paragraphElement);
-      const comments = commentsXml ? buildComments(commentIds, commentsXml) : [];
-      const documentParagraph = buildDocumentParagraph(paragraphElement);
-      const styleId = extractParagraphStyle(paragraphElement);
-      
-      // Try to get numbering for header/footer paragraphs
-      let numberingInfo: string | undefined;
-      if (styles && numIdToAbstractNumId && abstractNumIdToFormat && counters) {
-        // Check for direct numbering first
-        numberingInfo = trackNumbering(paragraphElement, numIdToAbstractNumId, abstractNumIdToFormat, counters);
-        // If no direct numbering, check for style-based numbering
-        if (!numberingInfo) {
-          numberingInfo = trackStyleNumbering(paragraphElement, styles, numIdToAbstractNumId, abstractNumIdToFormat, counters);
+      // Check if the paragraph has any text content before including it
+      if (paragraphHasTextContent(paragraphElement)) {
+        const commentIds = extractCommentIds(paragraphElement);
+        const comments = commentsXml ? buildComments(commentIds, commentsXml) : [];
+        const documentParagraph = buildDocumentParagraph(paragraphElement);
+        const styleId = extractParagraphStyle(paragraphElement);
+        
+        // Try to get numbering for header/footer paragraphs
+        let numberingInfo: string | undefined;
+        if (styles && numIdToAbstractNumId && abstractNumIdToFormat && counters) {
+          // Check for direct numbering first
+          numberingInfo = trackNumbering(paragraphElement, numIdToAbstractNumId, abstractNumIdToFormat, counters);
+          // If no direct numbering, check for style-based numbering
+          if (!numberingInfo) {
+            numberingInfo = trackStyleNumbering(paragraphElement, styles, numIdToAbstractNumId, abstractNumIdToFormat, counters);
+          }
         }
-      }
 
-      extractedParagraphs.push({
-        paragraph: documentParagraph,
-        comments,
-        section: numberingInfo ? undefined : sectionNumber,
-        numbering: numberingInfo,
-        style: styleId || undefined,
-        source,
-      });
+        extractedParagraphs.push({
+          paragraph: documentParagraph,
+          comments,
+          section: numberingInfo ? undefined : sectionNumber,
+          numbering: numberingInfo,
+          style: styleId || undefined,
+          source,
+        });
+      }
     }
   }
 
@@ -789,39 +792,42 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
     }
 
     if (paragraphIsInteresting(paragraphElement, criteria)) {
-      const commentIds = extractCommentIds(paragraphElement);
-      const footnoteIds = extractFootnoteIds(paragraphElement);
-      const endnoteIds = extractEndnoteIds(paragraphElement);
-      
-      let allComments: (Paragraph | null)[] = [];
-      
-      // Add comments
-      if (commentsXml && commentIds.length > 0) {
-        allComments = [...allComments, ...buildComments(commentIds, commentsXml)];
-      }
-      
-      // Add footnotes
-      if (footnotesXml && footnoteIds.length > 0) {
-        allComments = [...allComments, ...buildFootnotes(footnoteIds, footnotesXml)];
-      }
-      
-      // Add endnotes
-      if (endnotesXml && endnoteIds.length > 0) {
-        allComments = [...allComments, ...buildEndnotes(endnoteIds, endnotesXml)];
-      }
-      
-      const documentParagraph = buildDocumentParagraph(paragraphElement);
-      const styleId = extractParagraphStyle(paragraphElement);
+      // Check if the paragraph has any text content before including it
+      if (paragraphHasTextContent(paragraphElement)) {
+        const commentIds = extractCommentIds(paragraphElement);
+        const footnoteIds = extractFootnoteIds(paragraphElement);
+        const endnoteIds = extractEndnoteIds(paragraphElement);
+        
+        let allComments: (Paragraph | null)[] = [];
+        
+        // Add comments
+        if (commentsXml && commentIds.length > 0) {
+          allComments = [...allComments, ...buildComments(commentIds, commentsXml)];
+        }
+        
+        // Add footnotes
+        if (footnotesXml && footnoteIds.length > 0) {
+          allComments = [...allComments, ...buildFootnotes(footnoteIds, footnotesXml)];
+        }
+        
+        // Add endnotes
+        if (endnotesXml && endnoteIds.length > 0) {
+          allComments = [...allComments, ...buildEndnotes(endnoteIds, endnotesXml)];
+        }
+        
+        const documentParagraph = buildDocumentParagraph(paragraphElement);
+        const styleId = extractParagraphStyle(paragraphElement);
 
-      interestingParagraphs.push({
-        paragraph: documentParagraph,
-        comments: allComments,
-        section: numberingInfo ? undefined : currentSection,
-        page: numberingInfo ? undefined : currentPage,
-        numbering: numberingInfo ? numberingInfo : undefined,
-        style: styleId || undefined,
-        source: 'document',
-      });
+        interestingParagraphs.push({
+          paragraph: documentParagraph,
+          comments: allComments,
+          section: numberingInfo ? undefined : currentSection,
+          page: numberingInfo ? undefined : currentPage,
+          numbering: numberingInfo ? numberingInfo : undefined,
+          style: styleId || undefined,
+          source: 'document',
+        });
+      }
     }
 
     if (numberingInfo) {
@@ -917,6 +923,7 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
     if (!fileName) {
       throw new Error(`File name at index ${index} is undefined.`);
     }
+    
     return {
         properties: {
           type: SectionType.CONTINUOUS,
@@ -1030,6 +1037,40 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
       };
     })
   };
+
+/**
+ * Checks if a paragraph element (from XML) contains any text content.
+ * @param paragraphElement - The XML element representing the paragraph.
+ * @returns True if the paragraph has text content, false if it's empty.
+ */
+const paragraphHasTextContent = (paragraphElement: Element): boolean => {
+  // Get all text runs in the paragraph
+  const textRuns = Array.from(paragraphElement.getElementsByTagName('w:r'));
+  
+  // Check each text run for text content
+  for (const textRun of textRuns) {
+    const textElements = Array.from(textRun.getElementsByTagName('w:t'));
+    const delTextElements = Array.from(textRun.getElementsByTagName('w:delText'));
+    
+    // Check regular text elements
+    for (const textElement of textElements) {
+      const text = textElement.textContent || '';
+      if (text.trim().length > 0) {
+        return true;
+      }
+    }
+    
+    // Check deleted text elements
+    for (const delTextElement of delTextElements) {
+      const text = delTextElement.textContent || '';
+      if (text.trim().length > 0) {
+        return true;
+      }
+    }
+  }
+  
+  return false;
+};
 
 /**
  * Builds styles for the document.
