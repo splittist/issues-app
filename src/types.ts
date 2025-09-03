@@ -41,6 +41,7 @@ export interface ExtractedParagraph {
   section?: number;
   page?: number;
   numbering?: string;
+  style?: string;
   source: ParagraphSource;
 }
 

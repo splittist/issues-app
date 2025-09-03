@@ -273,6 +273,21 @@ const getNumberingDocument = async (zip: JSZip): Promise<globalThis.Document | n
 }
 
 /**
+ * Retrieves the styles document from the given zip file.
+ * @param zip - The JSZip object representing the .docx file.
+ * @returns A promise that resolves to the styles document or null.
+ */
+const getStylesDocument = async (zip: JSZip): Promise<globalThis.Document | null> => {
+  const stylesXml = await zip.file('word/styles.xml')?.async('string');
+  if (!stylesXml) {
+    return null;
+  }
+
+  const stylesParser = new DOMParser();
+  return stylesParser.parseFromString(stylesXml, 'application/xml');
+}
+
+/**
  * Converts a number to a lowercase letter representation.
  * @param num - The number to convert.
  * @returns The lowercase letter representation of the number.
@@ -360,6 +375,95 @@ const buildNumberingMaps = (numberingDoc: globalThis.Document) => {
 };
 
 /**
+ * Interface for style numbering information.
+ */
+interface StyleNumberingInfo {
+  numId?: string;
+  ilvl?: string;
+}
+
+/**
+ * Interface for style information including hierarchy.
+ */
+interface StyleInfo {
+  id: string;
+  name: string;
+  basedOn?: string;
+  numbering?: StyleNumberingInfo;
+}
+
+/**
+ * Builds style hierarchy mappings from the styles document.
+ * @param stylesDoc - The XML document containing styles information.
+ * @returns Maps for style IDs to style information and style hierarchy resolution.
+ */
+const buildStyleMaps = (stylesDoc: globalThis.Document) => {
+  const styles = new Map<string, StyleInfo>();
+  
+  // Parse all styles
+  const styleElements = stylesDoc.getElementsByTagName('w:style');
+  for (const styleElement of Array.from(styleElements)) {
+    const styleId = styleElement.getAttribute('w:styleId');
+    const nameElement = styleElement.getElementsByTagName('w:name')[0];
+    const styleName = nameElement?.getAttribute('w:val') || '';
+    const basedOnElement = styleElement.getElementsByTagName('w:basedOn')[0];
+    const basedOn = basedOnElement?.getAttribute('w:val');
+    
+    // Look for numbering in paragraph properties
+    const pPrElement = styleElement.getElementsByTagName('w:pPr')[0];
+    let numbering: StyleNumberingInfo | undefined;
+    
+    if (pPrElement) {
+      const numPrElement = pPrElement.getElementsByTagName('w:numPr')[0];
+      if (numPrElement) {
+        const numId = numPrElement.getElementsByTagName('w:numId')[0]?.getAttribute('w:val') || undefined;
+        const ilvl = numPrElement.getElementsByTagName('w:ilvl')[0]?.getAttribute('w:val') || undefined;
+        numbering = { numId, ilvl };
+      }
+    }
+    
+    if (styleId) {
+      styles.set(styleId, {
+        id: styleId,
+        name: styleName,
+        basedOn: basedOn || undefined,
+        numbering
+      });
+    }
+  }
+  
+  return styles;
+};
+
+/**
+ * Resolves numbering for a style by walking up the style hierarchy.
+ * @param styleId - The style ID to resolve.
+ * @param styles - Map of style IDs to style information.
+ * @returns The numbering information or undefined if not found.
+ */
+const resolveStyleNumbering = (styleId: string, styles: Map<string, StyleInfo>): StyleNumberingInfo | undefined => {
+  const visited = new Set<string>();
+  let currentStyleId = styleId;
+  
+  while (currentStyleId && !visited.has(currentStyleId)) {
+    visited.add(currentStyleId);
+    const style = styles.get(currentStyleId);
+    
+    if (!style) {
+      break;
+    }
+    
+    if (style.numbering) {
+      return style.numbering;
+    }
+    
+    currentStyleId = style.basedOn || '';
+  }
+  
+  return undefined;
+};
+
+/**
  * Initializes counters for numbering levels.
  * @param maxLevels - The maximum number of levels.
  * @returns An array of counters initialized to 0.
@@ -388,25 +492,79 @@ const updateCounters = (counters: number[], ilvl: number) => {
  * @param numIdToAbstractNumId - Map of numId to abstractNumId.
  * @param abstractNumIdToFormat - Map of abstractNumId to format.
  * @param counters - The current counters.
- * @returns The numbering as a string or null.
+ * @returns The numbering as a string or undefined.
  */
-const trackNumbering = (paragraphElement: Element, numIdToAbstractNumId: Map<string, string>, abstractNumIdToFormat: Map<string, { numFmt: string, lvlText: string }[]>, counters: number[]) => {
+const trackNumbering = (paragraphElement: Element, numIdToAbstractNumId: Map<string, string>, abstractNumIdToFormat: Map<string, { numFmt: string, lvlText: string }[]>, counters: number[]): string | undefined => {
   const numPrElement = paragraphElement.getElementsByTagName('w:numPr')[0];
-  if (!numPrElement) return null;
+  if (!numPrElement) return undefined;
 
   const numId = numPrElement.getElementsByTagName('w:numId')[0]?.getAttribute('w:val');
   const ilvl = numPrElement.getElementsByTagName('w:ilvl')[0]?.getAttribute('w:val');
-  if (!numId || !ilvl) return null;
+  if (!numId || !ilvl) return undefined;
 
   const abstractNumId = numIdToAbstractNumId.get(numId);
-  if (!abstractNumId) return null;
+  if (!abstractNumId) return undefined;
 
   const formats = abstractNumIdToFormat.get(abstractNumId);
-  if (!formats) return null;
+  if (!formats) return undefined;
 
   // const format = formats[parseInt(ilvl, 10)];
   counters = updateCounters(counters, parseInt(ilvl, 10));
   const numbering = counters.slice(0, parseInt(ilvl, 10) + 1)
+      .map((num, index) => {
+          const fmt = formats[index]?.numFmt || 'decimal';
+          return formatNumber(num, fmt);
+       })
+    .join('.');
+  return numbering;
+};
+
+/**
+ * Extracts the paragraph style ID from a given paragraph element.
+ * @param paragraphElement - The XML element representing the paragraph.
+ * @returns The style ID or undefined if not found.
+ */
+const extractParagraphStyle = (paragraphElement: Element): string | undefined => {
+  const pPrElement = paragraphElement.getElementsByTagName('w:pPr')[0];
+  if (!pPrElement) return undefined;
+  
+  const pStyleElement = pPrElement.getElementsByTagName('w:pStyle')[0];
+  if (!pStyleElement) return undefined;
+  
+  return pStyleElement.getAttribute('w:val') || undefined;
+};
+
+/**
+ * Tracks numbering from style hierarchy for a given paragraph element.
+ * @param paragraphElement - The XML element representing the paragraph.
+ * @param styles - Map of style IDs to style information.
+ * @param numIdToAbstractNumId - Map of numId to abstractNumId.
+ * @param abstractNumIdToFormat - Map of abstractNumId to format.
+ * @param counters - The current counters.
+ * @returns The numbering as a string or undefined.
+ */
+const trackStyleNumbering = (
+  paragraphElement: Element, 
+  styles: Map<string, StyleInfo>,
+  numIdToAbstractNumId: Map<string, string>, 
+  abstractNumIdToFormat: Map<string, { numFmt: string, lvlText: string }[]>, 
+  counters: number[]
+): string | undefined => {
+  const styleId = extractParagraphStyle(paragraphElement);
+  if (!styleId) return undefined;
+  
+  const styleNumbering = resolveStyleNumbering(styleId, styles);
+  if (!styleNumbering || !styleNumbering.numId || !styleNumbering.ilvl) return undefined;
+  
+  const abstractNumId = numIdToAbstractNumId.get(styleNumbering.numId);
+  if (!abstractNumId) return undefined;
+
+  const formats = abstractNumIdToFormat.get(abstractNumId);
+  if (!formats) return undefined;
+
+  const ilvl = parseInt(styleNumbering.ilvl, 10);
+  counters = updateCounters(counters, ilvl);
+  const numbering = counters.slice(0, ilvl + 1)
       .map((num, index) => {
           const fmt = formats[index]?.numFmt || 'decimal';
           return formatNumber(num, fmt);
@@ -524,6 +682,10 @@ const buildTextRun = (runElement: Element, style: string = ''): TextRun => {
  * @param commentsXml - The comments document.
  * @param source - The source type ('header' or 'footer').
  * @param sectionNumber - The section number these paragraphs belong to.
+ * @param styles - Map of style IDs to style information.
+ * @param numIdToAbstractNumId - Map of numId to abstractNumId.
+ * @param abstractNumIdToFormat - Map of abstractNumId to format.
+ * @param counters - The current counters for numbering.
  * @returns An array of extracted paragraphs.
  */
 const processDocumentParagraphs = (
@@ -531,7 +693,11 @@ const processDocumentParagraphs = (
   criteria: Criteria,
   commentsXml: globalThis.Document | null,
   source: ParagraphSource,
-  sectionNumber: number
+  sectionNumber: number,
+  styles?: Map<string, StyleInfo>,
+  numIdToAbstractNumId?: Map<string, string>,
+  abstractNumIdToFormat?: Map<string, { numFmt: string, lvlText: string }[]>,
+  counters?: number[]
 ): ExtractedParagraph[] => {
   const paragraphs = Array.from(document.getElementsByTagName('w:p'));
   const extractedParagraphs: ExtractedParagraph[] = [];
@@ -541,11 +707,25 @@ const processDocumentParagraphs = (
       const commentIds = extractCommentIds(paragraphElement);
       const comments = commentsXml ? buildComments(commentIds, commentsXml) : [];
       const documentParagraph = buildDocumentParagraph(paragraphElement);
+      const styleId = extractParagraphStyle(paragraphElement);
+      
+      // Try to get numbering for header/footer paragraphs
+      let numberingInfo: string | undefined;
+      if (styles && numIdToAbstractNumId && abstractNumIdToFormat && counters) {
+        // Check for direct numbering first
+        numberingInfo = trackNumbering(paragraphElement, numIdToAbstractNumId, abstractNumIdToFormat, counters);
+        // If no direct numbering, check for style-based numbering
+        if (!numberingInfo) {
+          numberingInfo = trackStyleNumbering(paragraphElement, styles, numIdToAbstractNumId, abstractNumIdToFormat, counters);
+        }
+      }
 
       extractedParagraphs.push({
         paragraph: documentParagraph,
         comments,
-        section: sectionNumber,
+        section: numberingInfo ? undefined : sectionNumber,
+        numbering: numberingInfo,
+        style: styleId || undefined,
         source,
       });
     }
@@ -570,14 +750,17 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
   const footnotesXml = await getFootnotesDocument(zip);
   const endnotesXml = await getEndnotesDocument(zip);
   const numberingXml = await getNumberingDocument(zip);
+  const stylesXml = await getStylesDocument(zip);
 
   const allParagaphs = Array.from(documentXml.getElementsByTagName('w:p'));
 
   const { numIdToAbstractNumId, abstractNumIdToFormat } = numberingXml ? buildNumberingMaps(numberingXml) : { numIdToAbstractNumId: new Map<string, string>(), abstractNumIdToFormat: new Map<string, { numFmt: string, lvlText: string }[]>() };
+  const styles = stylesXml ? buildStyleMaps(stylesXml) : new Map<string, StyleInfo>();
 
   let currentSection = 1;
   let currentPage = 1;
   const counters = initializeCounters(9);
+  const styleCounters = initializeCounters(9); // Separate counters for style-based numbering
   let previousNumberingInfo: string | null = null;
 
   const interestingParagraphs: ExtractedParagraph[] = [];
@@ -593,7 +776,13 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
       currentPage++;
     }
 
+    // Check for direct numbering first (w:numPr elements)
     let numberingInfo = numberingXml ? trackNumbering(paragraphElement, numIdToAbstractNumId, abstractNumIdToFormat, counters) : undefined;
+    
+    // If no direct numbering, check for style-based numbering
+    if (!numberingInfo) {
+      numberingInfo = stylesXml ? trackStyleNumbering(paragraphElement, styles, numIdToAbstractNumId, abstractNumIdToFormat, styleCounters) : undefined;
+    }
 
     if (!numberingInfo && previousNumberingInfo) {
       numberingInfo = previousNumberingInfo;
@@ -622,13 +811,15 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
       }
       
       const documentParagraph = buildDocumentParagraph(paragraphElement);
+      const styleId = extractParagraphStyle(paragraphElement);
 
       interestingParagraphs.push({
         paragraph: documentParagraph,
-        comments,
+        comments: allComments,
         section: numberingInfo ? undefined : currentSection,
         page: numberingInfo ? undefined : currentPage,
         numbering: numberingInfo ? numberingInfo : undefined,
+        style: styleId || undefined,
         source: 'document',
       });
     }
@@ -641,16 +832,38 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
   // Process header paragraphs for each section
   // Reset section counter for headers/footers processing
   let sectionForHeaders = 1;
+  const headerFooterCounters = initializeCounters(9); // Separate counters for headers/footers
+  
   for (const paragraphElement of allParagaphs) {
     if (paragraphElement.getElementsByTagName('w:sectPr').length > 0) {
       // Process headers and footers for this section
       for (const headerDoc of headerDocs) {
-        const headerParagraphs = processDocumentParagraphs(headerDoc, criteria, commentsXml, 'header', sectionForHeaders);
+        const headerParagraphs = processDocumentParagraphs(
+          headerDoc, 
+          criteria, 
+          commentsXml, 
+          'header', 
+          sectionForHeaders,
+          styles,
+          numIdToAbstractNumId,
+          abstractNumIdToFormat,
+          headerFooterCounters
+        );
         interestingParagraphs.push(...headerParagraphs);
       }
       
       for (const footerDoc of footerDocs) {
-        const footerParagraphs = processDocumentParagraphs(footerDoc, criteria, commentsXml, 'footer', sectionForHeaders);
+        const footerParagraphs = processDocumentParagraphs(
+          footerDoc, 
+          criteria, 
+          commentsXml, 
+          'footer', 
+          sectionForHeaders,
+          styles,
+          numIdToAbstractNumId,
+          abstractNumIdToFormat,
+          headerFooterCounters
+        );
         interestingParagraphs.push(...footerParagraphs);
       }
       
@@ -661,12 +874,32 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
   // Process headers/footers for the final section if no section breaks were found
   if (sectionForHeaders === 1) {
     for (const headerDoc of headerDocs) {
-      const headerParagraphs = processDocumentParagraphs(headerDoc, criteria, commentsXml, 'header', 1);
+      const headerParagraphs = processDocumentParagraphs(
+        headerDoc, 
+        criteria, 
+        commentsXml, 
+        'header', 
+        1,
+        styles,
+        numIdToAbstractNumId,
+        abstractNumIdToFormat,
+        headerFooterCounters
+      );
       interestingParagraphs.push(...headerParagraphs);
     }
     
     for (const footerDoc of footerDocs) {
-      const footerParagraphs = processDocumentParagraphs(footerDoc, criteria, commentsXml, 'footer', 1);
+      const footerParagraphs = processDocumentParagraphs(
+        footerDoc, 
+        criteria, 
+        commentsXml, 
+        'footer', 
+        1,
+        styles,
+        numIdToAbstractNumId,
+        abstractNumIdToFormat,
+        headerFooterCounters
+      );
       interestingParagraphs.push(...footerParagraphs);
     }
   }
@@ -751,21 +984,28 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
                     }),
                     new TableCell({
                       children: [new Paragraph({
+                                  text: "Style",
+                                  style: 'Strong',
+                    })],
+                      width: { size: 10, type:WidthType.PERCENTAGE },
+                    }),
+                    new TableCell({
+                      children: [new Paragraph({
                                   text: "Paragraph",
                                   style: 'Strong',
                     })],
-                      width: { size: 40, type:WidthType.PERCENTAGE },
+                      width: { size: 35, type:WidthType.PERCENTAGE },
                     }),
                     new TableCell({
                       children: [new Paragraph({
                                   text: "Comment",
                                   style: 'Strong',
                     })],
-                      width: { size: 45, type: WidthType.PERCENTAGE },
+                      width: { size: 40, type: WidthType.PERCENTAGE },
                     }),
                   ],
                 }),
-                ...paragraphGroup.map(({ paragraph, comments, section, page, numbering, source }) => {
+                ...paragraphGroup.map(({ paragraph, comments, section, page, numbering, style, source }) => {
                   return new TableRow({
                     children: [
                       new TableCell({
@@ -773,6 +1013,9 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
                       }),
                       new TableCell({
                         children: [new Paragraph(source.charAt(0).toUpperCase() + source.slice(1))],
+                      }),
+                      new TableCell({
+                        children: [new Paragraph(style || '')],
                       }),
                       new TableCell({
                         children: [paragraph,]
