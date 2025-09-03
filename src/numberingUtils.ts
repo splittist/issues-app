@@ -18,6 +18,21 @@ export const toLowerLetter = (num: number): string => {
 };
 
 /**
+ * Converts a number to an uppercase letter representation.
+ * @param num - The number to convert.
+ * @returns The uppercase letter representation of the number.
+ */
+export const toUpperLetter = (num: number): string => {
+  let letter = '';
+  while (num > 0) {
+    const remainder = (num - 1) % 26;
+    letter = String.fromCharCode(65 + remainder) + letter;
+    num = Math.floor((num - 1) / 26);
+  }
+  return letter;
+};
+
+/**
  * Converts a number to a lowercase Roman numeral representation.
  * @param num - The number to convert.
  * @returns The lowercase Roman numeral representation of the number.
@@ -36,6 +51,116 @@ export const toLowerRoman = (num: number): string => {
 };
 
 /**
+ * Converts a number to an uppercase Roman numeral representation.
+ * @param num - The number to convert.
+ * @returns The uppercase Roman numeral representation of the number.
+ */
+export const toUpperRoman = (num: number): string => {
+  const romanNumerals = ['I', 'IV', 'V', 'IX', 'X', 'XL', 'L', 'XC', 'C', 'CD', 'D', 'CM', 'M'];
+  const values = [1, 4, 5, 9, 10, 40, 50, 90, 100, 400, 500, 900, 1000];
+  let result = '';
+  for (let i = values.length - 1; i >= 0; i--) {
+    while (num >= values[i]) {
+      result += romanNumerals[i];
+      num -= values[i];
+    }
+  }
+  return result;
+};
+
+/**
+ * Converts a number to ordinal representation (1st, 2nd, 3rd, etc.).
+ * @param num - The number to convert.
+ * @returns The ordinal representation of the number.
+ */
+export const toOrdinal = (num: number): string => {
+  const suffix = ['th', 'st', 'nd', 'rd'];
+  const value = num % 100;
+  return num + (suffix[(value - 20) % 10] || suffix[value] || suffix[0]);
+};
+
+/**
+ * Converts a number to cardinal text representation (one, two, three, etc.).
+ * @param num - The number to convert.
+ * @returns The cardinal text representation of the number.
+ */
+export const toCardinalText = (num: number): string => {
+  const ones = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+  const teens = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  const hundreds = ['', 'one hundred', 'two hundred', 'three hundred', 'four hundred', 'five hundred', 'six hundred', 'seven hundred', 'eight hundred', 'nine hundred'];
+
+  if (num === 0) return 'zero';
+  if (num < 0) return 'negative ' + toCardinalText(-num);
+  if (num >= 1000) return num.toString(); // Fallback for large numbers
+
+  let result = '';
+  
+  if (num >= 100) {
+    result += hundreds[Math.floor(num / 100)];
+    num %= 100;
+    if (num > 0) result += ' ';
+  }
+  
+  if (num >= 20) {
+    result += tens[Math.floor(num / 10)];
+    num %= 10;
+    if (num > 0) result += '-' + ones[num];
+  } else if (num >= 10) {
+    result += teens[num - 10];
+  } else if (num > 0) {
+    result += ones[num];
+  }
+  
+  return result;
+};
+
+/**
+ * Converts a number to ordinal text representation (first, second, third, etc.).
+ * @param num - The number to convert.
+ * @returns The ordinal text representation of the number.
+ */
+export const toOrdinalText = (num: number): string => {
+  const ordinals = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth',
+    'eleventh', 'twelfth', 'thirteenth', 'fourteenth', 'fifteenth', 'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth', 'twentieth'];
+  
+  if (num <= 20 && num > 0) {
+    return ordinals[num];
+  }
+  
+  // For numbers above 20, convert to cardinal text and modify the ending
+  const cardinalText = toCardinalText(num);
+  if (cardinalText.endsWith('one')) {
+    return cardinalText.slice(0, -3) + 'first';
+  } else if (cardinalText.endsWith('two')) {
+    return cardinalText.slice(0, -3) + 'second';
+  } else if (cardinalText.endsWith('three')) {
+    return cardinalText.slice(0, -5) + 'third';
+  } else if (cardinalText.endsWith('five')) {
+    return cardinalText.slice(0, -4) + 'fifth';
+  } else if (cardinalText.endsWith('eight')) {
+    return cardinalText.slice(0, -5) + 'eighth';
+  } else if (cardinalText.endsWith('nine')) {
+    return cardinalText.slice(0, -4) + 'ninth';
+  } else if (cardinalText.endsWith('twelve')) {
+    return cardinalText.slice(0, -6) + 'twelfth';
+  } else if (cardinalText.endsWith('y')) {
+    return cardinalText.slice(0, -1) + 'ieth';
+  } else {
+    return cardinalText + 'th';
+  }
+};
+
+/**
+ * Converts a number to number-in-dash format (- 1 -, - 2 -, etc.).
+ * @param num - The number to convert.
+ * @returns The number-in-dash representation of the number.
+ */
+export const toNumberInDash = (num: number): string => {
+  return `- ${num} -`;
+};
+
+/**
  * Formats a number according to the specified format.
  * @param num - The number to format.
  * @param format - The format to apply.
@@ -47,8 +172,22 @@ export const formatNumber = (num: number, format: string): string => {
       return num.toString();
     case 'lowerLetter':
       return toLowerLetter(num);
+    case 'upperLetter':
+      return toUpperLetter(num);
     case 'lowerRoman':
       return toLowerRoman(num);
+    case 'upperRoman':
+      return toUpperRoman(num);
+    case 'bullet':
+      return '•';
+    case 'ordinal':
+      return toOrdinal(num);
+    case 'cardinalText':
+      return toCardinalText(num);
+    case 'ordinalText':
+      return toOrdinalText(num);
+    case 'numberInDash':
+      return toNumberInDash(num);
     default:
       return num.toString();
   }
