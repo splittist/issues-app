@@ -871,37 +871,35 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
     }
   }
 
-  // Process headers/footers for the final section if no section breaks were found
-  if (sectionForHeaders === 1) {
-    for (const headerDoc of headerDocs) {
-      const headerParagraphs = processDocumentParagraphs(
-        headerDoc, 
-        criteria, 
-        commentsXml, 
-        'header', 
-        1,
-        styles,
-        numIdToAbstractNumId,
-        abstractNumIdToFormat,
-        headerFooterCounters
-      );
-      interestingParagraphs.push(...headerParagraphs);
-    }
-    
-    for (const footerDoc of footerDocs) {
-      const footerParagraphs = processDocumentParagraphs(
-        footerDoc, 
-        criteria, 
-        commentsXml, 
-        'footer', 
-        1,
-        styles,
-        numIdToAbstractNumId,
-        abstractNumIdToFormat,
-        headerFooterCounters
-      );
-      interestingParagraphs.push(...footerParagraphs);
-    }
+  // Process headers/footers for the final section
+  for (const headerDoc of headerDocs) {
+    const headerParagraphs = processDocumentParagraphs(
+      headerDoc, 
+      criteria, 
+      commentsXml, 
+      'header', 
+      sectionForHeaders,
+      styles,
+      numIdToAbstractNumId,
+      abstractNumIdToFormat,
+      headerFooterCounters
+    );
+    interestingParagraphs.push(...headerParagraphs);
+  }
+  
+  for (const footerDoc of footerDocs) {
+    const footerParagraphs = processDocumentParagraphs(
+      footerDoc, 
+      criteria, 
+      commentsXml, 
+      'footer', 
+      sectionForHeaders,
+      styles,
+      numIdToAbstractNumId,
+      abstractNumIdToFormat,
+      headerFooterCounters
+    );
+    interestingParagraphs.push(...footerParagraphs);
   }
 
   return interestingParagraphs;
