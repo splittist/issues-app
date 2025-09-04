@@ -30,6 +30,15 @@ We use **Vitest** for testing, which provides:
 - Basic component rendering
 - Essential UI element presence
 
+### Automatic Numbering (`numberingUtils.test.ts`)
+- Number formatting functions (toLowerLetter, toUpperLetter, toLowerRoman, toUpperRoman)
+- Ordinal and cardinal text conversion (toOrdinal, toCardinalText, toOrdinalText)
+- Number formatting dispatcher (formatNumber)
+- Counter management (initializeCounters, updateCounters)
+- Document parsing helpers (buildNumberingMaps, buildStyleMaps)
+- Style hierarchy resolution (resolveStyleNumbering, extractParagraphStyle)
+- Edge cases and error handling for all numbering functions
+
 ## Running Tests
 
 ```bash
@@ -47,5 +56,6 @@ These tests focus on:
 2. **Core utility functions** - Testing business logic and data transformations
 3. **Basic component rendering** - Verifying UI components mount properly
 4. **Type safety** - Validating TypeScript interfaces and types
+5. **Automatic numbering** - Comprehensive testing of Word document numbering functionality
 
 The tests are designed to be fast, reliable, and focused on the most critical functionality while serving as a foundation for future test expansion.
