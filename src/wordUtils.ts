@@ -24,7 +24,7 @@ import { Paragraph,
     PageOrientation,
     ISectionOptions,
     } from "docx";
-import { dateToday } from "./utils";
+import { dateToday, formatCommentDate } from "./utils";
 import { 
     buildNumberingMaps,
     StyleInfo,
@@ -125,9 +125,33 @@ const buildComments = (ids: string[], xmlComments: globalThis.Document): (Paragr
     const paragraphs = element.getElementsByTagName('w:p');
     if (!paragraphs || paragraphs.length === 0) return [null];
     
+    // Extract commenter details
+    const author = element.getAttribute('w:author') || '';
+    const initials = element.getAttribute('w:initials') || '';
+    const dateStr = element.getAttribute('w:date') || '';
+    
+    // Use initials if available, otherwise use author
+    const commenterName = initials || author;
+    
+    // Format the date if available
+    const formattedDate = dateStr ? formatCommentDate(dateStr) : '';
+    
+    // Build identification text
+    let identificationText = `Comment ${id}`;
+    if (commenterName) {
+      identificationText += ` (${commenterName}`;
+      if (formattedDate) {
+        identificationText += `, ${formattedDate}`;
+      }
+      identificationText += ')';
+    } else if (formattedDate) {
+      identificationText += ` (${formattedDate})`;
+    }
+    identificationText += ': ';
+    
     // Create identification paragraph
     const identificationParagraph = new Paragraph({
-      children: [new TextRun({ text: `Comment ${id}: ` })]
+      children: [new TextRun({ text: identificationText })]
     });
     
     const contentParagraphs = Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph));
