@@ -113,13 +113,27 @@ const buildComments = (ids: string[], xmlComments: globalThis.Document): (Paragr
   const namespaceURI = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
   const commentElements = ids.map(id => {
     const comments = xmlComments.getElementsByTagNameNS(namespaceURI,'comment');
-    return Array.from(comments).find(comment => comment.getAttribute('w:id') === id);
+    return {
+      element: Array.from(comments).find(comment => comment.getAttribute('w:id') === id),
+      id: id
+    };
   });
 
-  return commentElements.flatMap(element => {
-    const paragraphs = element?.getElementsByTagName('w:p');
-    return paragraphs ? Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph)) : [null];
-  })
+  return commentElements.flatMap(({ element, id }) => {
+    if (!element) return [null];
+    
+    const paragraphs = element.getElementsByTagName('w:p');
+    if (!paragraphs || paragraphs.length === 0) return [null];
+    
+    // Create identification paragraph
+    const identificationParagraph = new Paragraph({
+      children: [new TextRun({ text: `Comment ${id}: ` })]
+    });
+    
+    const contentParagraphs = Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph));
+    
+    return [identificationParagraph, ...contentParagraphs];
+  });
 };
 
 /**
@@ -132,13 +146,27 @@ const buildFootnotes = (ids: string[], xmlFootnotes: globalThis.Document): (Para
   const namespaceURI = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
   const footnoteElements = ids.map(id => {
     const footnotes = xmlFootnotes.getElementsByTagNameNS(namespaceURI,'footnote');
-    return Array.from(footnotes).find(footnote => footnote.getAttribute('w:id') === id);
+    return {
+      element: Array.from(footnotes).find(footnote => footnote.getAttribute('w:id') === id),
+      id: id
+    };
   });
 
-  return footnoteElements.flatMap(element => {
-    const paragraphs = element?.getElementsByTagName('w:p');
-    return paragraphs ? Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph)) : [null];
-  })
+  return footnoteElements.flatMap(({ element, id }) => {
+    if (!element) return [null];
+    
+    const paragraphs = element.getElementsByTagName('w:p');
+    if (!paragraphs || paragraphs.length === 0) return [null];
+    
+    // Create identification paragraph
+    const identificationParagraph = new Paragraph({
+      children: [new TextRun({ text: `Footnote ${id}: ` })]
+    });
+    
+    const contentParagraphs = Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph));
+    
+    return [identificationParagraph, ...contentParagraphs];
+  });
 };
 
 /**
@@ -151,13 +179,27 @@ const buildEndnotes = (ids: string[], xmlEndnotes: globalThis.Document): (Paragr
   const namespaceURI = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
   const endnoteElements = ids.map(id => {
     const endnotes = xmlEndnotes.getElementsByTagNameNS(namespaceURI,'endnote');
-    return Array.from(endnotes).find(endnote => endnote.getAttribute('w:id') === id);
+    return {
+      element: Array.from(endnotes).find(endnote => endnote.getAttribute('w:id') === id),
+      id: id
+    };
   });
 
-  return endnoteElements.flatMap(element => {
-    const paragraphs = element?.getElementsByTagName('w:p');
-    return paragraphs ? Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph)) : [null];
-  })
+  return endnoteElements.flatMap(({ element, id }) => {
+    if (!element) return [null];
+    
+    const paragraphs = element.getElementsByTagName('w:p');
+    if (!paragraphs || paragraphs.length === 0) return [null];
+    
+    // Create identification paragraph
+    const identificationParagraph = new Paragraph({
+      children: [new TextRun({ text: `Endnote ${id}: ` })]
+    });
+    
+    const contentParagraphs = Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph));
+    
+    return [identificationParagraph, ...contentParagraphs];
+  });
 };
 
 /**
@@ -351,6 +393,18 @@ const buildTextRun = (runElement: Element, style: string = ''): TextRun => {
         return new Break();
       case 'w:tab':
         return new Tab();
+      case 'w:commentReference': {
+        const commentId = (child as Element).getAttribute('w:id');
+        return commentId ? `[Comment ${commentId}]` : '[Comment]';
+      }
+      case 'w:footnoteReference': {
+        const footnoteId = (child as Element).getAttribute('w:id');
+        return footnoteId ? `[Footnote ${footnoteId}]` : '[Footnote]';
+      }
+      case 'w:endnoteReference': {
+        const endnoteId = (child as Element).getAttribute('w:id');
+        return endnoteId ? `[Endnote ${endnoteId}]` : '[Endnote]';
+      }
       default:
         return null;
     }
