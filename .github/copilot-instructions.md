@@ -9,13 +9,17 @@ Always reference these instructions first and fallback to search or bash command
 ### Bootstrap, Build, and Test
 - Install Node.js v20.19.4 or later if not available
 - Bootstrap the repository:
-  - `npm install` -- takes ~4-15 seconds, installs 245 packages (varies by network)
+  - `npm install` -- takes ~4-15 seconds, installs dependencies (varies by network)
   - `npm audit fix` -- fixes security vulnerabilities if needed, takes ~10 seconds
 - Build the application:
   - `npm run build` -- takes ~7 seconds. TypeScript compilation + Vite bundling
   - Generates production files in `dist/` directory (975KB main bundle)
 - Lint the code:
   - `npm run lint` -- takes ~1-2 seconds. Uses ESLint with TypeScript rules
+- Test the code:
+  - `npm run test` -- runs tests in watch mode for development
+  - `npm run test:run` -- runs tests once (for CI/production)
+  - Uses Vitest with React Testing Library for fast, reliable testing
 - Run development server:
   - `npm run dev` -- starts Vite dev server on http://localhost:5173/
   - Ready in ~200ms, includes hot module reloading
@@ -29,7 +33,8 @@ Always reference these instructions first and fallback to search or bash command
 - **File processing validation**: Verify that the "Save file" button generates and downloads a report file
 - **Output validation**: Check that extracted content appears correctly in the generated .docx report
 - ALWAYS run `npm run lint` before committing changes or CI will fail
-- No automated tests exist in this project - manual testing is required for all functionality
+- ALWAYS run `npm run test:run` to ensure automated tests pass
+- **Testing infrastructure**: Automated tests exist for utility functions, types, and basic component rendering using Vitest
 
 ## Application Architecture
 
@@ -57,6 +62,8 @@ The application allows users to:
 - **React 18.3.1**: UI framework
 - **TypeScript 5.6.2**: Type-safe JavaScript
 - **Vite 6.3.5**: Build tool and dev server
+- **Vitest 3.2.4**: Fast test framework with native ES modules support
+- **React Testing Library**: Component testing utilities
 - **FluentUI**: Microsoft's React component library
 - **docx 9.1.0**: Word document creation and parsing
 - **react-dropzone 14.3.5**: File drag-and-drop
@@ -70,6 +77,12 @@ The application allows users to:
 /home/runner/work/issues-app/issues-app/
 ├── .github/                    # GitHub configuration
 ├── src/                        # Source code
+│   ├── test/                   # Test files and setup
+│   │   ├── setup.ts            # Test environment configuration
+│   │   ├── utils.test.ts       # Utility function tests
+│   │   ├── App.test.tsx        # Component tests
+│   │   ├── types.test.ts       # Type definition tests
+│   │   └── README.md           # Testing documentation
 │   ├── App.tsx                 # Main application
 │   ├── WordHandler.tsx         # File processing component
 │   ├── FileItem.tsx            # File list item
@@ -79,21 +92,21 @@ The application allows users to:
 ├── dist/                       # Build output (generated)
 ├── node_modules/               # Dependencies (generated)
 ├── package.json                # Project configuration
-├── vite.config.ts              # Vite configuration
+├── vite.config.ts              # Vite configuration with test setup
 ├── tsconfig.json               # TypeScript configuration
 ├── eslint.config.js            # ESLint configuration
 └── index.html                  # HTML template
 ```
 
 ### Build Configuration Files
-- **vite.config.ts**: Minimal Vite config with React plugin
+- **vite.config.ts**: Vite config with React plugin and Vitest test configuration
 - **tsconfig.json**: References app and node TypeScript configs
 - **eslint.config.js**: ESLint with TypeScript, React hooks, and React refresh rules
-- **package.json**: ES modules enabled (`"type": "module"`)
+- **package.json**: ES modules enabled (`"type": "module"`) with test scripts
 
 ### Dependency Management
-- 21 production dependencies (React, FluentUI, docx library, etc.)
-- 14 development dependencies (TypeScript, ESLint, Vite, etc.)
+- Production dependencies (React, FluentUI, docx library, etc.)
+- Development dependencies (TypeScript, ESLint, Vite, Vitest, Testing Library, etc.)
 - Audit vulnerabilities automatically fixable with `npm audit fix`
 - No security issues after running audit fix
 
@@ -101,9 +114,11 @@ The application allows users to:
 1. Start with `npm install` to install dependencies
 2. Run `npm run dev` to start development server
 3. Make changes to source files (automatic hot reload)
-4. Run `npm run lint` to check code style
-5. Run `npm run build` to verify production build works
-6. Test functionality manually by uploading .docx files
+4. Run `npm run test` during development for continuous testing
+5. Run `npm run lint` to check code style
+6. Run `npm run test:run` to verify all tests pass
+7. Run `npm run build` to verify production build works
+8. Test functionality manually by uploading .docx files
 
 ### File Processing Details
 The application processes Word documents by:
@@ -126,10 +141,47 @@ Key extraction criteria:
 - **Type errors**: Check that all TypeScript interfaces in `types.ts` are properly imported
 
 ## Performance Notes
-- **npm install**: ~15 seconds for 245 packages
+- **npm install**: ~15 seconds for dependencies
 - **npm run build**: ~7 seconds (TypeScript + Vite bundling)
 - **npm run lint**: ~1-2 seconds
+- **npm run test:run**: ~5 seconds (Vitest with 14 tests)
 - **npm run dev**: ~200ms startup time
 - **File processing**: Depends on document size and complexity
+
+## Testing Infrastructure
+
+### Test Framework
+The project uses **Vitest** for testing, providing:
+- Fast test execution with native ES modules support
+- Jest-compatible API for familiar testing patterns
+- Built-in TypeScript support
+- Integration with Vite for optimal performance
+
+### Test Structure
+- Tests are located in `src/test/` directory
+- `setup.ts` - Test environment configuration
+- `*.test.ts` - Unit tests for utility functions and types
+- `*.test.tsx` - Component tests using React Testing Library
+
+### Current Test Coverage
+- **Utility Functions** (`utils.test.ts`) - Date formatting and parsing functions
+- **Type Definitions** (`types.test.ts`) - Interface and type validations
+- **React Components** (`App.test.tsx`) - Basic component rendering tests
+
+### Running Tests
+```bash
+# Run tests in watch mode (development)
+npm run test
+
+# Run tests once (CI/production)  
+npm run test:run
+```
+
+### Testing Philosophy
+Tests focus on:
+1. Infrastructure validation - Ensuring test setup works correctly
+2. Core utility functions - Testing business logic and data transformations
+3. Basic component rendering - Verifying UI components mount properly
+4. Type safety - Validating TypeScript interfaces and types
 
 Always test the complete file upload → processing → download workflow when making changes to ensure the core functionality remains intact.
