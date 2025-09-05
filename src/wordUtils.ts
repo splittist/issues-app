@@ -17,6 +17,7 @@ import { Paragraph,
     WidthType, 
     PageOrientation,
     ISectionOptions,
+    ShadingType,
     } from "docx";
 import { dateToday, formatCommentDate } from "./utils";
 import { 
@@ -435,7 +436,10 @@ const buildTextRun = (runElement: Element, style: string = ''): TextRun[] => {
         const commentText = commentId ? `[Comment ${commentId}]` : '[Comment]';
         results.push(new TextRun({
           text: commentText,
-          highlight: 'yellow',
+          shading: {
+            type: ShadingType.SOLID,
+            fill: 'E6E6E6' // Light gray background
+          },
           ...runProps
         }));
         break;
