@@ -435,8 +435,8 @@ const buildTextRun = (runElement: Element, style: string = ''): TextRun[] => {
         const commentText = commentId ? `[Comment ${commentId}]` : '[Comment]';
         results.push(new TextRun({
           text: commentText,
-          style: 'CommentAnchor',
-          ...runProps
+          ...runProps,
+          style: 'CommentAnchor'
         }));
         break;
       }
@@ -455,8 +455,8 @@ const buildTextRun = (runElement: Element, style: string = ''): TextRun[] => {
         const footnoteText = footnoteId ? `[Footnote ${footnoteId}]` : '[Footnote]';
         results.push(new TextRun({
           text: footnoteText,
-          style: 'FootnoteAnchor',
-          ...runProps
+          ...runProps,
+          style: 'FootnoteAnchor'
         }));
         break;
       }
@@ -475,8 +475,8 @@ const buildTextRun = (runElement: Element, style: string = ''): TextRun[] => {
         const endnoteText = endnoteId ? `[Endnote ${endnoteId}]` : '[Endnote]';
         results.push(new TextRun({
           text: endnoteText,
-          style: 'EndnoteAnchor',
-          ...runProps
+          ...runProps,
+          style: 'EndnoteAnchor'
         }));
         break;
       }
