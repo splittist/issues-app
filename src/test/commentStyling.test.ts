@@ -1,19 +1,38 @@
 import { describe, it, expect } from 'vitest';
-import { TextRun, ShadingType } from 'docx';
+import { TextRun } from 'docx';
 
 describe('Comment Styling', () => {
-  it('should create styled comment anchor TextRun with shading', () => {
+  it('should create styled comment anchor TextRun with named style', () => {
     const commentAnchorText = "[Comment 1]";
     const styledCommentAnchor = new TextRun({
       text: commentAnchorText,
-      shading: {
-        type: ShadingType.SOLID,
-        fill: 'E6E6E6'
-      }
+      style: 'CommentAnchor'
     });
 
     expect(styledCommentAnchor).toBeDefined();
     expect(styledCommentAnchor).toBeInstanceOf(TextRun);
+  });
+
+  it('should create styled footnote anchor TextRun with named style', () => {
+    const footnoteAnchorText = "[Footnote 1]";
+    const styledFootnoteAnchor = new TextRun({
+      text: footnoteAnchorText,
+      style: 'FootnoteAnchor'
+    });
+
+    expect(styledFootnoteAnchor).toBeDefined();
+    expect(styledFootnoteAnchor).toBeInstanceOf(TextRun);
+  });
+
+  it('should create styled endnote anchor TextRun with named style', () => {
+    const endnoteAnchorText = "[Endnote 1]";
+    const styledEndnoteAnchor = new TextRun({
+      text: endnoteAnchorText,
+      style: 'EndnoteAnchor'
+    });
+
+    expect(styledEndnoteAnchor).toBeDefined();
+    expect(styledEndnoteAnchor).toBeInstanceOf(TextRun);
   });
 
   it('should create styled comment identification TextRun with italics', () => {
@@ -36,13 +55,22 @@ describe('Comment Styling', () => {
       text: "This is some regular text "
     }));
     
-    // Comment anchor with shading
+    // Comment anchor with named style
     results.push(new TextRun({
       text: "[Comment 1]",
-      shading: {
-        type: ShadingType.SOLID,
-        fill: 'E6E6E6'
-      }
+      style: 'CommentAnchor'
+    }));
+    
+    // Footnote anchor with named style
+    results.push(new TextRun({
+      text: "[Footnote 1]",
+      style: 'FootnoteAnchor'
+    }));
+    
+    // Endnote anchor with named style
+    results.push(new TextRun({
+      text: "[Endnote 1]",
+      style: 'EndnoteAnchor'
     }));
     
     // More regular text
@@ -50,9 +78,11 @@ describe('Comment Styling', () => {
       text: " and more text."
     }));
 
-    expect(results).toHaveLength(3);
+    expect(results).toHaveLength(5);
     expect(results[0]).toBeInstanceOf(TextRun);
     expect(results[1]).toBeInstanceOf(TextRun);
     expect(results[2]).toBeInstanceOf(TextRun);
+    expect(results[3]).toBeInstanceOf(TextRun);
+    expect(results[4]).toBeInstanceOf(TextRun);
   });
 });

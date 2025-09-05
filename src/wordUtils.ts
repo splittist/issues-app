@@ -17,7 +17,6 @@ import { Paragraph,
     WidthType, 
     PageOrientation,
     ISectionOptions,
-    ShadingType,
     } from "docx";
 import { dateToday, formatCommentDate } from "./utils";
 import { 
@@ -436,22 +435,49 @@ const buildTextRun = (runElement: Element, style: string = ''): TextRun[] => {
         const commentText = commentId ? `[Comment ${commentId}]` : '[Comment]';
         results.push(new TextRun({
           text: commentText,
-          shading: {
-            type: ShadingType.SOLID,
-            fill: 'E6E6E6' // Light gray background
-          },
+          style: 'CommentAnchor',
           ...runProps
         }));
         break;
       }
       case 'w:footnoteReference': {
+        // Add any remaining current text as a TextRun first
+        if (currentText) {
+          results.push(new TextRun({
+            text: currentText,
+            ...runProps
+          }));
+          currentText = '';
+        }
+        
+        // Create a styled TextRun for the footnote anchor
         const footnoteId = (child as Element).getAttribute('w:id');
-        currentText += footnoteId ? `[Footnote ${footnoteId}]` : '[Footnote]';
+        const footnoteText = footnoteId ? `[Footnote ${footnoteId}]` : '[Footnote]';
+        results.push(new TextRun({
+          text: footnoteText,
+          style: 'FootnoteAnchor',
+          ...runProps
+        }));
         break;
       }
       case 'w:endnoteReference': {
+        // Add any remaining current text as a TextRun first
+        if (currentText) {
+          results.push(new TextRun({
+            text: currentText,
+            ...runProps
+          }));
+          currentText = '';
+        }
+        
+        // Create a styled TextRun for the endnote anchor
         const endnoteId = (child as Element).getAttribute('w:id');
-        currentText += endnoteId ? `[Endnote ${endnoteId}]` : '[Endnote]';
+        const endnoteText = endnoteId ? `[Endnote ${endnoteId}]` : '[Endnote]';
+        results.push(new TextRun({
+          text: endnoteText,
+          style: 'EndnoteAnchor',
+          ...runProps
+        }));
         break;
       }
       default:
