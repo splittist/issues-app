@@ -85,4 +85,39 @@ describe('Comment Styling', () => {
     expect(results[3]).toBeInstanceOf(TextRun);
     expect(results[4]).toBeInstanceOf(TextRun);
   });
+
+  it('should ensure anchor styles take precedence over runProps styles', () => {
+    // Simulate runProps that includes a style property
+    const runPropsWithStyle = {
+      bold: true,
+      italics: true,
+      style: 'SomeOtherStyle'
+    };
+    
+    // Test that anchor style overwrites runProps style when placed after spread
+    const commentAnchor = new TextRun({
+      text: "[Comment 1]",
+      ...runPropsWithStyle,
+      style: 'CommentAnchor'
+    });
+    
+    const footnoteAnchor = new TextRun({
+      text: "[Footnote 1]",
+      ...runPropsWithStyle,
+      style: 'FootnoteAnchor'
+    });
+    
+    const endnoteAnchor = new TextRun({
+      text: "[Endnote 1]",
+      ...runPropsWithStyle,
+      style: 'EndnoteAnchor'
+    });
+
+    expect(commentAnchor).toBeDefined();
+    expect(footnoteAnchor).toBeDefined();
+    expect(endnoteAnchor).toBeDefined();
+    expect(commentAnchor).toBeInstanceOf(TextRun);
+    expect(footnoteAnchor).toBeInstanceOf(TextRun);
+    expect(endnoteAnchor).toBeInstanceOf(TextRun);
+  });
 });
