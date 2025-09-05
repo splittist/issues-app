@@ -4,7 +4,8 @@
 
 import { 
     IRunOptions, 
-    UnderlineType
+    UnderlineType,
+    ShadingType
 } from "docx";
 import { HLColor, ULType } from "./types";
 
@@ -121,6 +122,39 @@ export const buildStyles = () => {
           color: '006400',
           underline: {
             type: UnderlineType.DOUBLE,
+          },
+        },
+      },
+      {
+        id: 'CommentAnchor',
+        name: 'CommentAnchor',
+        basedOn: 'Normal',
+        run: {
+          shading: {
+            type: ShadingType.PERCENT_50,
+            fill: 'C0C0C0', // Light gray
+          },
+        },
+      },
+      {
+        id: 'FootnoteAnchor',
+        name: 'FootnoteAnchor',
+        basedOn: 'Normal',
+        run: {
+          shading: {
+            type: ShadingType.PERCENT_50,
+            fill: 'ADD8E6', // Light blue
+          },
+        },
+      },
+      {
+        id: 'EndnoteAnchor',
+        name: 'EndnoteAnchor',
+        basedOn: 'Normal',
+        run: {
+          shading: {
+            type: ShadingType.PERCENT_50,
+            fill: '90EE90', // Light green
           },
         },
       }
