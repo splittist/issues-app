@@ -1,17 +1,11 @@
 import JSZip from "jszip";
 import { Criteria, 
     ExtractedParagraph,
-    IRunContent,
-    Break,
     ParagraphSource,
     } from "./types";
 import { Paragraph, 
     ParagraphChild, 
     TextRun, 
-    NoBreakHyphen, 
-    SoftHyphen, 
-    CarriageReturn, 
-    Tab,
     Header,
     Footer,
     AlignmentType,
@@ -50,13 +44,13 @@ const buildDocumentParagraph = (paragraphElement: Element): Paragraph => {
       case 'w:r':
         return buildTextRun(child as Element);
       case 'w:del':
-        return Array.from(child.getElementsByTagName('w:r')).map(run => buildTextRun(run, "Deletion"));
+        return Array.from(child.getElementsByTagName('w:r')).flatMap(run => buildTextRun(run, "Deletion"));
       case 'w:ins':
-        return Array.from(child.getElementsByTagName('w:r')).map(run => buildTextRun(run, "Insertion"));
+        return Array.from(child.getElementsByTagName('w:r')).flatMap(run => buildTextRun(run, "Insertion"));
       case 'w:moveFrom':
-        return Array.from(child.getElementsByTagName('w:r')).map(run => buildTextRun(run, "MoveFrom"));
+        return Array.from(child.getElementsByTagName('w:r')).flatMap(run => buildTextRun(run, "MoveFrom"));
       case 'w:moveTo':
-        return Array.from(child.getElementsByTagName('w:r')).map(run => buildTextRun(run, "MoveTo"));
+        return Array.from(child.getElementsByTagName('w:r')).flatMap(run => buildTextRun(run, "MoveTo"));
       default:
         return null;
     }
@@ -151,7 +145,7 @@ const buildComments = (ids: string[], xmlComments: globalThis.Document): (Paragr
     
     // Create identification paragraph
     const identificationParagraph = new Paragraph({
-      children: [new TextRun({ text: identificationText })]
+      children: [new TextRun({ text: identificationText, italics: true })]
     });
     
     const contentParagraphs = Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph));
@@ -394,50 +388,84 @@ const paragraphIsInteresting = (paragraph: Element, criteria: Criteria): boolean
 
 
 /**
- * Builds a TextRun object from a given run element.
+ * Builds one or more TextRun objects from a given run element.
  * @param runElement - The XML element representing the run.
  * @param style - The style to apply.
- * @returns A TextRun object.
+ * @returns An array of TextRun objects.
  */
-const buildTextRun = (runElement: Element, style: string = ''): TextRun => {
+const buildTextRun = (runElement: Element, style: string = ''): TextRun[] => {
   const runProps = buildRunProps(runElement.getElementsByTagName('w:rPr')[0], style);
   
-  const children: (string | IRunContent)[] = Array.from(runElement.childNodes).map(child => {
+  const results: TextRun[] = [];
+  let currentText = '';
+  
+  Array.from(runElement.childNodes).forEach(child => {
     switch(child.nodeName) {
       case 'w:t':
       case 'w:delText':
-        return child.textContent || '';
+        currentText += child.textContent || '';
+        break;
       case 'w:noBreakHyphen':
-        return new NoBreakHyphen();
+        currentText += '‑'; // Non-breaking hyphen character
+        break;
       case 'w:softHyphen':
-        return new SoftHyphen();
+        currentText += '­'; // Soft hyphen character
+        break;
       case 'w:cr':
-        return new CarriageReturn();
+        currentText += '\r';
+        break;
       case 'w:br':
-        return new Break();
+        currentText += '\n';
+        break;
       case 'w:tab':
-        return new Tab();
+        currentText += '\t';
+        break;
       case 'w:commentReference': {
+        // If we have accumulated text, create a TextRun for it
+        if (currentText) {
+          results.push(new TextRun({
+            text: currentText,
+            ...runProps
+          }));
+          currentText = '';
+        }
+        
+        // Create a styled TextRun for the comment anchor
         const commentId = (child as Element).getAttribute('w:id');
-        return commentId ? `[Comment ${commentId}]` : '[Comment]';
+        const commentText = commentId ? `[Comment ${commentId}]` : '[Comment]';
+        results.push(new TextRun({
+          text: commentText,
+          highlight: 'yellow',
+          ...runProps
+        }));
+        break;
       }
       case 'w:footnoteReference': {
         const footnoteId = (child as Element).getAttribute('w:id');
-        return footnoteId ? `[Footnote ${footnoteId}]` : '[Footnote]';
+        currentText += footnoteId ? `[Footnote ${footnoteId}]` : '[Footnote]';
+        break;
       }
       case 'w:endnoteReference': {
         const endnoteId = (child as Element).getAttribute('w:id');
-        return endnoteId ? `[Endnote ${endnoteId}]` : '[Endnote]';
+        currentText += endnoteId ? `[Endnote ${endnoteId}]` : '[Endnote]';
+        break;
       }
       default:
-        return null;
+        // Ignore unknown elements
+        break;
     }
-  }).filter(child => child !== null) as (string | IRunContent)[];
-
-  return new TextRun({
-                children,
-                ...runProps
-  })
+  });
+  
+  // If we have any remaining text, create a TextRun for it
+  if (currentText) {
+    results.push(new TextRun({
+      text: currentText,
+      ...runProps
+    }));
+  }
+  
+  // If no results, return a single empty TextRun to maintain compatibility
+  return results.length > 0 ? results : [new TextRun({ text: '', ...runProps })];
 };
 
 /**
