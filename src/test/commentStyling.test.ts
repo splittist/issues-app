@@ -1,12 +1,15 @@
 import { describe, it, expect } from 'vitest';
-import { TextRun } from 'docx';
+import { TextRun, ShadingType } from 'docx';
 
 describe('Comment Styling', () => {
-  it('should create styled comment anchor TextRun with highlight', () => {
+  it('should create styled comment anchor TextRun with shading', () => {
     const commentAnchorText = "[Comment 1]";
     const styledCommentAnchor = new TextRun({
       text: commentAnchorText,
-      highlight: 'yellow'
+      shading: {
+        type: ShadingType.SOLID,
+        fill: 'E6E6E6'
+      }
     });
 
     expect(styledCommentAnchor).toBeDefined();
@@ -33,10 +36,13 @@ describe('Comment Styling', () => {
       text: "This is some regular text "
     }));
     
-    // Comment anchor with highlighting
+    // Comment anchor with shading
     results.push(new TextRun({
       text: "[Comment 1]",
-      highlight: 'yellow'
+      shading: {
+        type: ShadingType.SOLID,
+        fill: 'E6E6E6'
+      }
     }));
     
     // More regular text
