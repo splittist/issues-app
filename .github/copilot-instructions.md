@@ -10,7 +10,7 @@ Always reference these instructions first and fallback to search or bash command
 - Install Node.js v20.19.4 or later if not available
 - Bootstrap the repository:
   - `npm install` -- takes ~4-15 seconds, installs dependencies (varies by network)
-  - `npm audit fix` -- fixes security vulnerabilities if needed, takes ~10 seconds
+  - `npm audit fix` -- fixes security vulnerabilities if needed, takes ~1 second (often no action needed)
 - Build the application:
   - `npm run build` -- takes ~7 seconds. TypeScript compilation + Vite bundling
   - Generates production files in `dist/` directory (975KB main bundle)
@@ -42,7 +42,9 @@ Always reference these instructions first and fallback to search or bash command
 - **App.tsx** (21 lines): Main application shell with header and footer
 - **WordHandler.tsx** (125 lines): Core component handling file upload, criteria selection, and processing
 - **FileItem.tsx** (77 lines): Individual file item with drag-and-drop reordering
-- **wordUtils.ts** (1154 lines): Heavy lifting for .docx parsing and extraction logic
+- **wordUtils.ts** (899 lines): Heavy lifting for .docx parsing and extraction logic
+- **numberingUtils.ts** (427 lines): Automatic numbering and formatting utilities for Word documents
+- **styleUtils.ts** (162 lines): Style processing and hierarchy management utilities
 - **types.ts** (61 lines): TypeScript interfaces and types for the application
 
 ### Core Functionality
@@ -86,6 +88,8 @@ The application allows users to:
 │   ├── App.tsx                 # Main application
 │   ├── WordHandler.tsx         # File processing component
 │   ├── FileItem.tsx            # File list item
+│   ├── numberingUtils.ts        # Automatic numbering and formatting utilities
+│   ├── styleUtils.ts            # Style processing and hierarchy management
 │   ├── wordUtils.ts            # Document parsing logic
 │   ├── types.ts                # TypeScript definitions
 │   └── utils.ts                # Utility functions
@@ -144,7 +148,7 @@ Key extraction criteria:
 - **npm install**: ~15 seconds for dependencies
 - **npm run build**: ~7 seconds (TypeScript + Vite bundling)
 - **npm run lint**: ~1-2 seconds
-- **npm run test:run**: ~5 seconds (Vitest with 14 tests)
+- **npm run test:run**: ~6 seconds (Vitest with 62 tests)
 - **npm run dev**: ~200ms startup time
 - **File processing**: Depends on document size and complexity
 
@@ -167,6 +171,8 @@ The project uses **Vitest** for testing, providing:
 - **Utility Functions** (`utils.test.ts`) - Date formatting and parsing functions
 - **Type Definitions** (`types.test.ts`) - Interface and type validations
 - **React Components** (`App.test.tsx`) - Basic component rendering tests
+- **Automatic Numbering** (`numberingUtils.test.ts`) - Comprehensive testing of Word document numbering functionality
+- **Comment Styling** (`commentStyling.test.ts`) - Comment formatting and style processing tests
 
 ### Running Tests
 ```bash
