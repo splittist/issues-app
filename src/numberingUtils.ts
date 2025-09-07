@@ -194,6 +194,26 @@ export const formatNumber = (num: number, format: string): string => {
 };
 
 /**
+ * Processes a lvlText template by replacing placeholders with formatted numbers.
+ * @param template - The lvlText template (e.g., "%1.%2(%3)")
+ * @param formattedNumbers - Array of formatted numbers for each level
+ * @returns The processed text with placeholders replaced
+ */
+export const processLvlText = (template: string, formattedNumbers: string[]): string => {
+  if (!template) {
+    return formattedNumbers.join('.');
+  }
+  
+  let result = template;
+  for (let i = 0; i < formattedNumbers.length; i++) {
+    const placeholder = `%${i + 1}`;
+    result = result.replace(new RegExp(placeholder, 'g'), formattedNumbers[i]);
+  }
+  
+  return result;
+};
+
+/**
  * Builds maps for numbering from the numbering document.
  * @param numberingDoc - The XML document containing numbering information.
  * @returns An object containing maps for numId to abstractNumId and abstractNumId to format.
@@ -362,15 +382,24 @@ export const trackNumbering = (paragraphElement: Element, numIdToAbstractNumId: 
   const formats = abstractNumIdToFormat.get(abstractNumId);
   if (!formats) return undefined;
 
-  // const format = formats[parseInt(ilvl, 10)];
-  counters = updateCounters(counters, parseInt(ilvl, 10));
-  const numbering = counters.slice(0, parseInt(ilvl, 10) + 1)
+  const currentLevel = parseInt(ilvl, 10);
+  counters = updateCounters(counters, currentLevel);
+  
+  // Get the formatted numbers for all levels up to current level
+  const formattedNumbers = counters.slice(0, currentLevel + 1)
       .map((num, index) => {
           const fmt = formats[index]?.numFmt || 'decimal';
           return formatNumber(num, fmt);
-       })
-    .join('.');
-  return numbering;
+       });
+  
+  // Use the lvlText template for the current level if available
+  const currentFormat = formats[currentLevel];
+  if (currentFormat && currentFormat.lvlText) {
+    return processLvlText(currentFormat.lvlText, formattedNumbers);
+  }
+  
+  // Fallback to joining with dots if no lvlText template
+  return formattedNumbers.join('.');
 };
 
 /**
@@ -418,11 +447,20 @@ export const trackStyleNumbering = (
 
   const ilvl = parseInt(styleNumbering.ilvl || "0", 10);
   counters = updateCounters(counters, ilvl);
-  const numbering = counters.slice(0, ilvl + 1)
+  
+  // Get the formatted numbers for all levels up to current level
+  const formattedNumbers = counters.slice(0, ilvl + 1)
       .map((num, index) => {
           const fmt = formats[index]?.numFmt || 'decimal';
           return formatNumber(num, fmt);
-       })
-    .join('.');
-  return numbering;
+       });
+  
+  // Use the lvlText template for the current level if available
+  const currentFormat = formats[ilvl];
+  if (currentFormat && currentFormat.lvlText) {
+    return processLvlText(currentFormat.lvlText, formattedNumbers);
+  }
+  
+  // Fallback to joining with dots if no lvlText template
+  return formattedNumbers.join('.');
 };

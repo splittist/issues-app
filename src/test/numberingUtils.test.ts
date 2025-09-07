@@ -9,6 +9,7 @@ import {
   toOrdinalText,
   toNumberInDash,
   formatNumber,
+  processLvlText,
   initializeCounters,
   updateCounters,
   buildNumberingMaps,
@@ -445,6 +446,133 @@ describe('numberingUtils', () => {
 
       const result = extractParagraphStyle(mockElement);
       expect(result).toBe('heading1');
+    })
+  })
+
+  describe('processLvlText', () => {
+    it('should process simple lvlText template with single level', () => {
+      const template = '%1.';
+      const numbers = ['1'];
+      const result = processLvlText(template, numbers);
+      expect(result).toBe('1.');
+    })
+
+    it('should process multi-level lvlText template', () => {
+      const template = '%1.%2(%3)';
+      const numbers = ['2', '1', 'i'];
+      const result = processLvlText(template, numbers);
+      expect(result).toBe('2.1(i)');
+    })
+
+    it('should handle lvlText template with different separators', () => {
+      const template = '%1)';
+      const numbers = ['3'];
+      const result = processLvlText(template, numbers);
+      expect(result).toBe('3)');
+    })
+
+    it('should handle empty template by joining with dots', () => {
+      const template = '';
+      const numbers = ['1', '2', '3'];
+      const result = processLvlText(template, numbers);
+      expect(result).toBe('1.2.3');
+    })
+
+    it('should handle template with extra placeholders', () => {
+      const template = '%1.%2.%3.%4';
+      const numbers = ['1', '2'];
+      const result = processLvlText(template, numbers);
+      expect(result).toBe('1.2.%3.%4');
+    })
+  })
+
+  describe('full numbering integration', () => {
+    it('should demonstrate fully qualified numbering with lvlText templates', () => {
+      // Mock data structure simulating Word document numbering
+      const formats = [
+        { numFmt: 'decimal', lvlText: '%1.' },           // Level 0: "1."
+        { numFmt: 'decimal', lvlText: '%1.%2.' },        // Level 1: "1.1."
+        { numFmt: 'lowerRoman', lvlText: '%1.%2(%3)' },  // Level 2: "1.1(i)"
+      ];
+      
+      // Simulate counters at level 2 with values [2, 1, 3]
+      const counters = [2, 1, 3];
+      const currentLevel = 2;
+      
+      // Format numbers according to their level's numFmt
+      const formattedNumbers = counters.slice(0, currentLevel + 1)
+        .map((num, index) => {
+          const fmt = formats[index]?.numFmt || 'decimal';
+          return formatNumber(num, fmt);
+        });
+      
+      // Should be ['2', '1', 'iii']
+      expect(formattedNumbers).toEqual(['2', '1', 'iii']);
+      
+      // Use current level's lvlText template
+      const result = processLvlText(formats[currentLevel].lvlText, formattedNumbers);
+      
+      // Should produce fully qualified numbering: "2.1(iii)"
+      expect(result).toBe('2.1(iii)');
+    })
+
+    it('should handle different numbering formats properly', () => {
+      const formats = [
+        { numFmt: 'upperLetter', lvlText: '%1)' },        // Level 0: "A)"
+        { numFmt: 'lowerLetter', lvlText: '%1)%2)' },     // Level 1: "A)a)"
+        { numFmt: 'decimal', lvlText: '%1)%2)%3.' },      // Level 2: "A)a)1."
+      ];
+      
+      const counters = [3, 2, 5]; // C, b, 5
+      const currentLevel = 2;
+      
+      const formattedNumbers = counters.slice(0, currentLevel + 1)
+        .map((num, index) => {
+          const fmt = formats[index]?.numFmt || 'decimal';
+          return formatNumber(num, fmt);
+        });
+      
+      expect(formattedNumbers).toEqual(['C', 'b', '5']);
+      
+      const result = processLvlText(formats[currentLevel].lvlText, formattedNumbers);
+      expect(result).toBe('C)b)5.');
+    })
+
+    it('should demonstrate the issue fix: show "2.1(i)" instead of just "(i)"', () => {
+      // This test demonstrates the exact issue described in the GitHub issue
+      
+      // Mock Word document numbering structure for a 3-level hierarchy
+      const formats = [
+        { numFmt: 'decimal', lvlText: '%1.' },           // Level 0: "1."
+        { numFmt: 'decimal', lvlText: '%1.%2.' },        // Level 1: "1.1."
+        { numFmt: 'lowerRoman', lvlText: '%1.%2(%3)' },  // Level 2: "1.1(i)"
+      ];
+      
+      // Simulate being at the third level (index 2) of section 2.1 with Roman numeral i
+      const counters = [2, 1, 1]; // 2nd main section, 1st subsection, 1st sub-subsection
+      const currentLevel = 2;
+      
+      // Format numbers according to their respective formats
+      const formattedNumbers = counters.slice(0, currentLevel + 1)
+        .map((num, index) => formatNumber(num, formats[index]?.numFmt || 'decimal'));
+      
+      // Should be ['2', '1', 'i'] 
+      expect(formattedNumbers).toEqual(['2', '1', 'i']);
+      
+      // OLD BEHAVIOR (what the issue was complaining about):
+      // Would have shown just: 'i'  (only the current level)
+      const oldBehavior = formattedNumbers[currentLevel];
+      expect(oldBehavior).toBe('i');
+      
+      // NEW BEHAVIOR (what this fix provides):
+      // Shows the full hierarchy: '2.1(i)'
+      const newBehavior = processLvlText(formats[currentLevel].lvlText, formattedNumbers);
+      expect(newBehavior).toBe('2.1(i)');
+      
+      // Verify the improvement
+      expect(newBehavior).not.toBe(oldBehavior);
+      expect(newBehavior).toContain('2.1'); // Contains the parent levels
+      expect(newBehavior).toContain('(i)'); // Contains the current level with proper formatting
     })
   })
 })
