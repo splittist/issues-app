@@ -3,12 +3,16 @@ import { Text } from '@fluentui/react/lib/Text';
 import './App.css';
 import WordHandler from './WordHandler';
 import './WordHandler.css';
+import ThemeToggle from './ThemeToggle';
 
 const App: React.FC = () => {
   return (
     <div className="App">
       <header className="App-header">
-        <Text variant='xxLarge'>Instant Issues List</Text>
+        <div className="header-content">
+          <Text variant='xxLarge'>Instant Issues List</Text>
+          <ThemeToggle />
+        </div>
         <WordHandler />
       </header>
       <footer className="App-footer">
