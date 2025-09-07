@@ -805,51 +805,41 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
                     }),
                     new TableCell({
                       children: [new Paragraph({
-                                  text: "Source",
-                                  style: 'Strong',
-                    })],
-                      width: { size: 7, type:WidthType.PERCENTAGE },
-                    }),
-                    new TableCell({
-                      children: [new Paragraph({
-                                  text: "Style",
-                                  style: 'Strong',
-                    })],
-                      width: { size: 10, type:WidthType.PERCENTAGE },
-                    }),
-                    new TableCell({
-                      children: [new Paragraph({
                                   text: "Paragraph",
                                   style: 'Strong',
                     })],
-                      width: { size: 35, type:WidthType.PERCENTAGE },
+                      width: { size: 42, type:WidthType.PERCENTAGE },
                     }),
                     new TableCell({
                       children: [new Paragraph({
-                                  text: "Comment",
+                                  text: "Annotation",
                                   style: 'Strong',
                     })],
                       width: { size: 40, type: WidthType.PERCENTAGE },
                     }),
+                    new TableCell({
+                      children: [new Paragraph({
+                                  text: "Response",
+                                  style: 'Strong',
+                    })],
+                      width: { size: 10, type: WidthType.PERCENTAGE },
+                    }),
                   ],
                 }),
-                ...paragraphGroup.map(({ paragraph, comments, section, page, numbering, style, source }) => {
+                ...paragraphGroup.map(({ paragraph, comments, section, page, numbering, source }) => {
                   return new TableRow({
                     children: [
                       new TableCell({
                         children: [new Paragraph(numbering || (source === 'header' || source === 'footer' ? `Sect ${section}, ${source.charAt(0).toUpperCase() + source.slice(1)}` : `Sect ${section}, p ${page}`))],
                       }),
                       new TableCell({
-                        children: [new Paragraph(source.charAt(0).toUpperCase() + source.slice(1))],
-                      }),
-                      new TableCell({
-                        children: [new Paragraph(style || '')],
-                      }),
-                      new TableCell({
                         children: [paragraph,]
                       }),
                       new TableCell({
                         children: comments.map(comment => comment || new Paragraph('')),
+                      }),
+                      new TableCell({
+                        children: [new Paragraph('')],
                       }),
                     ],
                   });
