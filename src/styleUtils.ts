@@ -131,7 +131,7 @@ export const buildStyles = () => {
         basedOn: 'Normal',
         run: {
           shading: {
-            type: ShadingType.PERCENT_50,
+            type: ShadingType.CLEAR,
             fill: 'C0C0C0', // Light gray
           },
         },
@@ -142,7 +142,7 @@ export const buildStyles = () => {
         basedOn: 'Normal',
         run: {
           shading: {
-            type: ShadingType.PERCENT_50,
+            type: ShadingType.CLEAR,
             fill: 'ADD8E6', // Light blue
           },
         },
@@ -153,7 +153,7 @@ export const buildStyles = () => {
         basedOn: 'Normal',
         run: {
           shading: {
-            type: ShadingType.PERCENT_50,
+            type: ShadingType.CLEAR,
             fill: '90EE90', // Light green
           },
         },
