@@ -5,11 +5,13 @@
   margin: 2em 0;
   cursor: pointer;
   text-align: center;
-  transition: background-color 300ms ease;
+  transition: background-color 300ms ease, border-color 300ms ease;
+  background-color: var(--bg-color);
 }
 
 .dropzone.active {
-  background-color: #e6f7ff;
+  background-color: var(--dropzone-active-bg, #e6f7ff);
+  border-color: var(--dropzone-active-border, #0078d4);
 }
 
 .filename {
@@ -21,4 +23,31 @@
 .file-list {
   list-style-type: none;
   padding: 0;
+}
+
+/* Dark theme specific styles */
+:root[data-theme="dark"] {
+  --dropzone-active-bg: rgba(71, 155, 216, 0.1);
+  --dropzone-active-border: #479bd8;
+}
+
+/* Light theme specific styles */
+:root[data-theme="light"] {
+  --dropzone-active-bg: #e6f7ff;
+  --dropzone-active-border: #0078d4;
+}
+
+/* Default fallback for systems without data-theme support */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .dropzone.active {
+    background-color: rgba(71, 155, 216, 0.1);
+    border-color: #479bd8;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) .dropzone.active {
+    background-color: #e6f7ff;
+    border-color: #0078d4;
+  }
 }
