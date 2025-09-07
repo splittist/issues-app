@@ -837,7 +837,7 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
                   return new TableRow({
                     children: [
                       new TableCell({
-                        children: [new Paragraph(numbering || `Sect ${section}, p ${page}`)],
+                        children: [new Paragraph(numbering || (source === 'header' || source === 'footer' ? `Sect ${section}, ${source.charAt(0).toUpperCase() + source.slice(1)}` : `Sect ${section}, p ${page}`))],
                       }),
                       new TableCell({
                         children: [new Paragraph(source.charAt(0).toUpperCase() + source.slice(1))],
