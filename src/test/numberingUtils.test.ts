@@ -537,5 +537,42 @@ describe('numberingUtils', () => {
       const result = processLvlText(formats[currentLevel].lvlText, formattedNumbers);
       expect(result).toBe('C)b)5.');
     })
+
+    it('should demonstrate the issue fix: show "2.1(i)" instead of just "(i)"', () => {
+      // This test demonstrates the exact issue described in the GitHub issue
+      
+      // Mock Word document numbering structure for a 3-level hierarchy
+      const formats = [
+        { numFmt: 'decimal', lvlText: '%1.' },           // Level 0: "1."
+        { numFmt: 'decimal', lvlText: '%1.%2.' },        // Level 1: "1.1."
+        { numFmt: 'lowerRoman', lvlText: '%1.%2(%3)' },  // Level 2: "1.1(i)"
+      ];
+      
+      // Simulate being at the third level (index 2) of section 2.1 with Roman numeral i
+      const counters = [2, 1, 1]; // 2nd main section, 1st subsection, 1st sub-subsection
+      const currentLevel = 2;
+      
+      // Format numbers according to their respective formats
+      const formattedNumbers = counters.slice(0, currentLevel + 1)
+        .map((num, index) => formatNumber(num, formats[index]?.numFmt || 'decimal'));
+      
+      // Should be ['2', '1', 'i'] 
+      expect(formattedNumbers).toEqual(['2', '1', 'i']);
+      
+      // OLD BEHAVIOR (what the issue was complaining about):
+      // Would have shown just: 'i'  (only the current level)
+      const oldBehavior = formattedNumbers[currentLevel];
+      expect(oldBehavior).toBe('i');
+      
+      // NEW BEHAVIOR (what this fix provides):
+      // Shows the full hierarchy: '2.1(i)'
+      const newBehavior = processLvlText(formats[currentLevel].lvlText, formattedNumbers);
+      expect(newBehavior).toBe('2.1(i)');
+      
+      // Verify the improvement
+      expect(newBehavior).not.toBe(oldBehavior);
+      expect(newBehavior).toContain('2.1'); // Contains the parent levels
+      expect(newBehavior).toContain('(i)'); // Contains the current level with proper formatting
+    })
   })
 })
