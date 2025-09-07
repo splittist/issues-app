@@ -408,7 +408,7 @@ export const trackStyleNumbering = (
   if (!styleId) return undefined;
   
   const styleNumbering = resolveStyleNumbering(styleId, styles);
-  if (!styleNumbering || !styleNumbering.numId || !styleNumbering.ilvl) return undefined;
+  if (!styleNumbering || !styleNumbering.numId) return undefined;
   
   const abstractNumId = numIdToAbstractNumId.get(styleNumbering.numId);
   if (!abstractNumId) return undefined;
@@ -416,7 +416,7 @@ export const trackStyleNumbering = (
   const formats = abstractNumIdToFormat.get(abstractNumId);
   if (!formats) return undefined;
 
-  const ilvl = parseInt(styleNumbering.ilvl, 10);
+  const ilvl = parseInt(styleNumbering.ilvl || "0", 10);
   counters = updateCounters(counters, ilvl);
   const numbering = counters.slice(0, ilvl + 1)
       .map((num, index) => {
