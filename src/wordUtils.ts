@@ -735,12 +735,27 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
 };
 
 /**
+ * Checks if any file has annotations (comments, footnotes, or endnotes).
+ * @param extractedParagraphs - An array of arrays of extracted paragraphs.
+ * @returns True if any file has annotations, false otherwise.
+ */
+export const hasAnyAnnotations = (extractedParagraphs: ExtractedParagraph[][]): boolean => {
+  return extractedParagraphs.some(paragraphGroup => 
+    paragraphGroup.some(extractedParagraph => 
+      extractedParagraph.comments.some(comment => comment !== null)
+    )
+  );
+};
+
+/**
  * Builds sections for the document from the extracted paragraphs.
  * @param extractedParagraphs - An array of arrays of extracted paragraphs.
  * @param names - An array of file names.
  * @returns An array of section options.
  */
 export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names: string[]): ISectionOptions[] => {
+  const includeAnnotations = hasAnyAnnotations(extractedParagraphs);
+  
   return extractedParagraphs.map((paragraphGroup, index) => {
     const fileName = names[index];
     if (!fileName) {
@@ -795,7 +810,7 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
               rows: [
                 new TableRow({
                   tableHeader: true,
-                  children: [
+                  children: includeAnnotations ? [
                     new TableCell({
                       children: [new Paragraph({
                                   text: "Ref",
@@ -824,11 +839,33 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
                     })],
                       width: { size: 10, type: WidthType.PERCENTAGE },
                     }),
+                  ] : [
+                    new TableCell({
+                      children: [new Paragraph({
+                                  text: "Ref",
+                                  style: 'Strong',
+                    })],
+                      width: { size: 8, type:WidthType.PERCENTAGE },
+                    }),
+                    new TableCell({
+                      children: [new Paragraph({
+                                  text: "Paragraph",
+                                  style: 'Strong',
+                    })],
+                      width: { size: 82, type:WidthType.PERCENTAGE },
+                    }),
+                    new TableCell({
+                      children: [new Paragraph({
+                                  text: "Response",
+                                  style: 'Strong',
+                    })],
+                      width: { size: 10, type: WidthType.PERCENTAGE },
+                    }),
                   ],
                 }),
                 ...paragraphGroup.map(({ paragraph, comments, section, page, numbering, source }) => {
                   return new TableRow({
-                    children: [
+                    children: includeAnnotations ? [
                       new TableCell({
                         children: [new Paragraph(numbering || (source === 'header' || source === 'footer' ? `Sect ${section}, ${source.charAt(0).toUpperCase() + source.slice(1)}` : `Sect ${section}, p ${page}`))],
                       }),
@@ -837,6 +874,16 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
                       }),
                       new TableCell({
                         children: comments.map(comment => comment || new Paragraph('')),
+                      }),
+                      new TableCell({
+                        children: [new Paragraph('')],
+                      }),
+                    ] : [
+                      new TableCell({
+                        children: [new Paragraph(numbering || (source === 'header' || source === 'footer' ? `Sect ${section}, ${source.charAt(0).toUpperCase() + source.slice(1)}` : `Sect ${section}, p ${page}`))],
+                      }),
+                      new TableCell({
+                        children: [paragraph,]
                       }),
                       new TableCell({
                         children: [new Paragraph('')],

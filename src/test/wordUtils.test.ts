@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { ExtractedParagraph } from '../types'
 import { Paragraph } from 'docx'
+import { hasAnyAnnotations } from '../wordUtils'
 
 describe('wordUtils', () => {
   describe('reference generation for headers and footers', () => {
@@ -90,6 +91,133 @@ describe('wordUtils', () => {
           : `Sect ${numberedParagraph.section}, p ${numberedParagraph.page}`)
       
       expect(actualReference).toBe(expectedReference)
+    })
+  })
+
+  describe('annotations column conditional inclusion', () => {
+    it('should detect annotations when any file has non-null comments', () => {
+      // Create paragraphs with some having annotations
+      const paragraphsWithAnnotations: ExtractedParagraph[] = [
+        {
+          paragraph: new Paragraph('Test content without annotations'),
+          comments: [],
+          section: 1,
+          page: 1,
+          numbering: undefined,
+          style: undefined,
+          source: 'document'
+        },
+        {
+          paragraph: new Paragraph('Test content with annotations'),
+          comments: [new Paragraph('This is a comment')],
+          section: 1,
+          page: 2,
+          numbering: undefined,
+          style: undefined,
+          source: 'document'
+        }
+      ]
+
+      const paragraphsWithoutAnnotations: ExtractedParagraph[] = [
+        {
+          paragraph: new Paragraph('Test content without annotations'),
+          comments: [],
+          section: 1,
+          page: 1,
+          numbering: undefined,
+          style: undefined,
+          source: 'document'
+        }
+      ]
+
+      const result = hasAnyAnnotations([paragraphsWithAnnotations, paragraphsWithoutAnnotations])
+      expect(result).toBe(true)
+    })
+
+    it('should not detect annotations when no files have non-null comments', () => {
+      // Create paragraphs without any annotations
+      const paragraphsWithoutAnnotations: ExtractedParagraph[] = [
+        {
+          paragraph: new Paragraph('Test content without annotations'),
+          comments: [],
+          section: 1,
+          page: 1,
+          numbering: undefined,
+          style: undefined,
+          source: 'document'
+        },
+        {
+          paragraph: new Paragraph('Another test content without annotations'),
+          comments: [],
+          section: 1,
+          page: 2,
+          numbering: undefined,
+          style: undefined,
+          source: 'document'
+        }
+      ]
+
+      const result = hasAnyAnnotations([paragraphsWithoutAnnotations])
+      expect(result).toBe(false)
+    })
+
+    it('should handle null comments correctly', () => {
+      // Create paragraphs with null comments (should be treated as no annotations)
+      const paragraphsWithNullComments: ExtractedParagraph[] = [
+        {
+          paragraph: new Paragraph('Test content'),
+          comments: [null, null],
+          section: 1,
+          page: 1,
+          numbering: undefined,
+          style: undefined,
+          source: 'document'
+        }
+      ]
+
+      const result = hasAnyAnnotations([paragraphsWithNullComments])
+      expect(result).toBe(false)
+    })
+
+    it('should detect annotations if even one non-null comment exists across all files', () => {
+      // First file with only null comments
+      const paragraphsWithNullComments: ExtractedParagraph[] = [
+        {
+          paragraph: new Paragraph('Test content'),
+          comments: [null],
+          section: 1,
+          page: 1,
+          numbering: undefined,
+          style: undefined,
+          source: 'document'
+        }
+      ]
+
+      // Second file with actual comment
+      const paragraphsWithRealComments: ExtractedParagraph[] = [
+        {
+          paragraph: new Paragraph('Test content'),
+          comments: [new Paragraph('Real comment')],
+          section: 1,
+          page: 1,
+          numbering: undefined,
+          style: undefined,
+          source: 'document'
+        }
+      ]
+
+      const result = hasAnyAnnotations([paragraphsWithNullComments, paragraphsWithRealComments])
+      expect(result).toBe(true)
+    })
+
+    it('should handle empty files array', () => {
+      const result = hasAnyAnnotations([])
+      expect(result).toBe(false)
+    })
+
+    it('should handle files with empty paragraph arrays', () => {
+      const result = hasAnyAnnotations([[], []])
+      expect(result).toBe(false)
     })
   })
 })
