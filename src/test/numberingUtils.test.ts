@@ -742,14 +742,94 @@ describe('numberingUtils', () => {
         expect(detectManualNumbering('\t\n')).toBeUndefined();
       });
 
-      it('should not detect uppercase letters', () => {
-        expect(detectManualNumbering('A. This should not match')).toBeUndefined();
-        expect(detectManualNumbering('Z. This should not match')).toBeUndefined();
+      it('should detect uppercase alpha numbering', () => {
+        expect(detectManualNumbering('A. This should match uppercase alpha')).toBe('A.');
+        expect(detectManualNumbering('Z. This should match uppercase alpha')).toBe('Z.');
+        expect(detectManualNumbering('AA. This should match multi-letter')).toBe('AA.');
       });
 
-      it('should not detect uppercase roman numerals', () => {
-        expect(detectManualNumbering('I. This should not match')).toBeUndefined();
-        expect(detectManualNumbering('IV. This should not match')).toBeUndefined();
+      it('should detect uppercase roman numerals', () => {
+        expect(detectManualNumbering('I. This should match uppercase roman')).toBe('I.');
+        expect(detectManualNumbering('IV. This should match uppercase roman')).toBe('IV.');
+        expect(detectManualNumbering('X. This should match uppercase roman')).toBe('X.');
+      });
+    });
+
+    describe('numbering without periods', () => {
+      it('should detect decimal numbering without periods', () => {
+        expect(detectManualNumbering('1\tThis is item one without period')).toBe('1');
+        expect(detectManualNumbering('10  This is item ten without period')).toBe('10');
+        expect(detectManualNumbering('1.2\tThis is nested numbering without period')).toBe('1.2');
+      });
+
+      it('should detect lowercase alpha numbering without periods', () => {
+        expect(detectManualNumbering('a\tThis is item a without period')).toBe('a');
+        expect(detectManualNumbering('z  This is item z without period')).toBe('z');
+        expect(detectManualNumbering('aa\tThis is item aa without period')).toBe('aa');
+      });
+
+      it('should detect uppercase alpha numbering without periods', () => {
+        expect(detectManualNumbering('A\tThis is item A without period')).toBe('A');
+        expect(detectManualNumbering('Z  This is item Z without period')).toBe('Z');
+        expect(detectManualNumbering('AA\tThis is item AA without period')).toBe('AA');
+      });
+
+      it('should detect lowercase roman numbering without periods', () => {
+        expect(detectManualNumbering('i\tThis is item i without period')).toBe('i');
+        expect(detectManualNumbering('iv  This is item iv without period')).toBe('iv');
+        expect(detectManualNumbering('x\tThis is item x without period')).toBe('x');
+      });
+
+      it('should detect uppercase roman numbering without periods', () => {
+        expect(detectManualNumbering('I\tThis is item I without period')).toBe('I');
+        expect(detectManualNumbering('IV  This is item IV without period')).toBe('IV');
+        expect(detectManualNumbering('X\tThis is item X without period')).toBe('X');
+      });
+    });
+
+    describe('leading whitespace handling', () => {
+      it('should handle leading whitespace correctly', () => {
+        expect(detectManualNumbering('   1. This has leading spaces')).toBe('1.');
+        expect(detectManualNumbering('\t\ta. This has leading tabs')).toBe('a.');
+        expect(detectManualNumbering('  \t A. This has mixed leading whitespace')).toBe('A.');
+        expect(detectManualNumbering(' \t I. This has leading whitespace')).toBe('I.');
+      });
+
+      it('should handle leading whitespace with non-period numbering', () => {
+        expect(detectManualNumbering('   1\tThis has leading spaces without period')).toBe('1');
+        expect(detectManualNumbering('\t\ta  This has leading tabs without period')).toBe('a');
+        expect(detectManualNumbering('  \t A\tThis has mixed leading whitespace without period')).toBe('A');
+        expect(detectManualNumbering(' \t I  This has leading whitespace without period')).toBe('I');
+      });
+    });
+
+    describe('false positive prevention', () => {
+      it('should not detect common English words as numbering', () => {
+        expect(detectManualNumbering('a word in the sentence')).toBeUndefined();
+        expect(detectManualNumbering('I went to the store')).toBeUndefined();
+        expect(detectManualNumbering('can see this clearly')).toBeUndefined();
+        expect(detectManualNumbering('to be or not to be')).toBeUndefined();
+        expect(detectManualNumbering('A quick brown fox')).toBeUndefined();
+        expect(detectManualNumbering('In the beginning')).toBeUndefined();
+      });
+
+      it('should not detect single letters followed by single space', () => {
+        expect(detectManualNumbering('a single space test')).toBeUndefined();
+        expect(detectManualNumbering('I single space test')).toBeUndefined();
+        expect(detectManualNumbering('A single space test')).toBeUndefined();
+      });
+
+      it('should not detect words that happen to start with roman numerals', () => {
+        expect(detectManualNumbering('ice cream is delicious')).toBeUndefined();
+        expect(detectManualNumbering('iced tea please')).toBeUndefined();
+        expect(detectManualNumbering('Incredible movie tonight')).toBeUndefined();
+        expect(detectManualNumbering('individual items here')).toBeUndefined();
+      });
+
+      it('should not detect ordinals or other numeric text', () => {
+        expect(detectManualNumbering('1st place winner')).toBeUndefined();
+        expect(detectManualNumbering('2nd time around')).toBeUndefined();
+        expect(detectManualNumbering('3rd party vendor')).toBeUndefined();
       });
     });
   })
@@ -775,6 +855,26 @@ describe('numberingUtils', () => {
       it('should validate parenthesized numbering', () => {
         expect(validateManualNumbering('(1)', '(1)\tThis is proper content')).toBe(true);
         expect(validateManualNumbering('(a)', '(a)   This has multiple spaces')).toBe(true);
+      });
+
+      it('should validate uppercase alpha numbering with proper formatting', () => {
+        expect(validateManualNumbering('A.', 'A.\tThis is proper content')).toBe(true);
+        expect(validateManualNumbering('B.', 'B.   This has multiple spaces')).toBe(true);
+        expect(validateManualNumbering('AA.', 'AA.\t\tThis is nested numbering')).toBe(true);
+      });
+
+      it('should validate uppercase roman numbering with proper formatting', () => {
+        expect(validateManualNumbering('I.', 'I.\tThis is proper content')).toBe(true);
+        expect(validateManualNumbering('IV.', 'IV.   This has multiple spaces')).toBe(true);
+        expect(validateManualNumbering('X.', 'X.\t\tThis is nested numbering')).toBe(true);
+      });
+
+      it('should validate numbering without periods', () => {
+        expect(validateManualNumbering('1', '1\tThis is proper content')).toBe(true);
+        expect(validateManualNumbering('a', 'a   This has multiple spaces')).toBe(true);
+        expect(validateManualNumbering('A', 'A\t\tThis is uppercase alpha')).toBe(true);
+        expect(validateManualNumbering('i', 'i   This is lowercase roman')).toBe(true);
+        expect(validateManualNumbering('I', 'I\tThis is uppercase roman')).toBe(true);
       });
     });
 
