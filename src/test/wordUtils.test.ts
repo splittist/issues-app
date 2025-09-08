@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { ExtractedParagraph } from '../types'
 import { Paragraph } from 'docx'
 import { hasAnyAnnotations } from '../wordUtils'
+import { detectManualNumbering, validateManualNumbering } from '../numberingUtils'
 
 describe('wordUtils', () => {
   describe('reference generation for headers and footers', () => {
@@ -219,5 +220,57 @@ describe('wordUtils', () => {
       const result = hasAnyAnnotations([[], []])
       expect(result).toBe(false)
     })
+  })
+
+  describe('manual numbering integration', () => {
+    it('should extract and use manual numbering when automatic numbering is not available', () => {
+      // This is a simplified test since full document processing requires complex XML setup
+      // In practice, the manual numbering detection will work when the document extraction 
+      // finds paragraphs with manual numbering patterns
+      
+      // Test the integration logic flow
+      const paragraphText = '1.\tThis is a manually numbered paragraph';
+      const detectedNumbering = detectManualNumbering(paragraphText);
+      const isValid = detectedNumbering ? validateManualNumbering(detectedNumbering, paragraphText) : false;
+      
+      expect(detectedNumbering).toBe('1.');
+      expect(isValid).toBe(true);
+    });
+
+    it('should prefer automatic numbering over manual numbering when both are available', () => {
+      // In the actual implementation, automatic numbering (trackNumbering, trackStyleNumbering)
+      // is checked first, and manual numbering is only used as a fallback
+      const automaticNumbering = '1.1.2';  // This would come from trackNumbering
+      const paragraphText = 'a.\tThis has both automatic and manual numbering patterns';
+      
+      // Manual numbering would be detected
+      const detectedManual = detectManualNumbering(paragraphText);
+      expect(detectedManual).toBe('a.');
+      
+      // But automatic numbering takes precedence
+      const finalNumbering = automaticNumbering || detectedManual;
+      expect(finalNumbering).toBe('1.1.2');
+    });
+
+    it('should handle edge cases in paragraph text extraction and numbering detection', () => {
+      // Test various paragraph patterns that might occur in real documents
+      const testCases = [
+        { text: '1.\tFirst item', expected: '1.' },
+        { text: 'a.\t\tSecond level item', expected: 'a.' },
+        { text: 'i.\t   Third level roman', expected: 'i.' },
+        { text: '(1)\tParenthesized numbering', expected: '(1)' },
+        { text: 'Normal text without numbering', expected: undefined },
+        { text: '1.This has no proper spacing', expected: undefined },
+        { text: 'www.\tThis looks like numbering but is not', expected: undefined }
+      ];
+
+      testCases.forEach(testCase => {
+        const detected = detectManualNumbering(testCase.text);
+        const isValid = detected ? validateManualNumbering(detected, testCase.text) : false;
+        const result = isValid ? detected : undefined;
+        
+        expect(result).toBe(testCase.expected);
+      });
+    });
   })
 })

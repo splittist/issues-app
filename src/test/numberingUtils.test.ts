@@ -15,7 +15,10 @@ import {
   buildNumberingMaps,
   buildStyleMaps,
   resolveStyleNumbering,
-  extractParagraphStyle
+  extractParagraphStyle,
+  extractParagraphText,
+  detectManualNumbering,
+  validateManualNumbering
 } from '../numberingUtils'
 
 describe('numberingUtils', () => {
@@ -574,5 +577,245 @@ describe('numberingUtils', () => {
       expect(newBehavior).toContain('2.1'); // Contains the parent levels
       expect(newBehavior).toContain('(i)'); // Contains the current level with proper formatting
     })
+  })
+
+  describe('extractParagraphText', () => {
+    it('should extract text from a mock paragraph element', () => {
+      // Create a mock DOM element structure for testing
+      const mockDoc = new DOMParser().parseFromString(`
+        <w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:r>
+            <w:t>Hello</w:t>
+          </w:r>
+          <w:r>
+            <w:t> world</w:t>
+          </w:r>
+        </w:p>
+      `, 'text/xml');
+      
+      const paragraphElement = mockDoc.documentElement;
+      const text = extractParagraphText(paragraphElement);
+      expect(text).toBe('Hello world');
+    });
+
+    it('should handle deleted text elements', () => {
+      const mockDoc = new DOMParser().parseFromString(`
+        <w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:r>
+            <w:delText>Deleted</w:delText>
+          </w:r>
+          <w:r>
+            <w:t> text</w:t>
+          </w:r>
+        </w:p>
+      `, 'text/xml');
+      
+      const paragraphElement = mockDoc.documentElement;
+      const text = extractParagraphText(paragraphElement);
+      expect(text).toBe('Deleted text');
+    });
+
+    it('should handle tab elements', () => {
+      const mockDoc = new DOMParser().parseFromString(`
+        <w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:r>
+            <w:t>1.</w:t>
+            <w:tab/>
+            <w:t>Item</w:t>
+          </w:r>
+        </w:p>
+      `, 'text/xml');
+      
+      const paragraphElement = mockDoc.documentElement;
+      const text = extractParagraphText(paragraphElement);
+      expect(text).toBe('1.\tItem');
+    });
+
+    it('should handle empty paragraphs', () => {
+      const mockDoc = new DOMParser().parseFromString(`
+        <w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+        </w:p>
+      `, 'text/xml');
+      
+      const paragraphElement = mockDoc.documentElement;
+      const text = extractParagraphText(paragraphElement);
+      expect(text).toBe('');
+    });
+  })
+
+  describe('detectManualNumbering', () => {
+    describe('decimal numbering', () => {
+      it('should detect simple decimal numbering', () => {
+        expect(detectManualNumbering('1. This is item one')).toBe('1.');
+        expect(detectManualNumbering('2. This is item two')).toBe('2.');
+        expect(detectManualNumbering('10. This is item ten')).toBe('10.');
+      });
+
+      it('should detect multi-level decimal numbering', () => {
+        expect(detectManualNumbering('1.1. This is a sub-item')).toBe('1.1.');
+        expect(detectManualNumbering('1.2.3. This is a sub-sub-item')).toBe('1.2.3.');
+        expect(detectManualNumbering('2.10.5. Complex numbering')).toBe('2.10.5.');
+      });
+
+      it('should detect parenthesized decimal numbering', () => {
+        expect(detectManualNumbering('(1) This is item one')).toBe('(1)');
+        expect(detectManualNumbering('(10) This is item ten')).toBe('(10)');
+        expect(detectManualNumbering('(1.2) This is a sub-item')).toBe('(1.2)');
+      });
+    });
+
+    describe('lower alpha numbering', () => {
+      it('should detect simple lower alpha numbering', () => {
+        expect(detectManualNumbering('a. This is item a')).toBe('a.');
+        expect(detectManualNumbering('b. This is item b')).toBe('b.');
+        expect(detectManualNumbering('z. This is item z')).toBe('z.');
+      });
+
+      it('should detect multi-letter alpha numbering', () => {
+        expect(detectManualNumbering('aa. This is item aa')).toBe('aa.');
+        expect(detectManualNumbering('ab. This is item ab')).toBe('ab.');
+      });
+
+      it('should detect parenthesized alpha numbering', () => {
+        expect(detectManualNumbering('(a) This is item a')).toBe('(a)');
+        expect(detectManualNumbering('(z) This is item z')).toBe('(z)');
+      });
+    });
+
+    describe('lower roman numbering', () => {
+      it('should detect simple lower roman numbering', () => {
+        expect(detectManualNumbering('i. This is item i')).toBe('i.');
+        expect(detectManualNumbering('ii. This is item ii')).toBe('ii.');
+        expect(detectManualNumbering('iii. This is item iii')).toBe('iii.');
+        expect(detectManualNumbering('iv. This is item iv')).toBe('iv.');
+        expect(detectManualNumbering('v. This is item v')).toBe('v.');
+      });
+
+      it('should detect complex lower roman numbering', () => {
+        expect(detectManualNumbering('ix. This is item ix')).toBe('ix.');
+        expect(detectManualNumbering('x. This is item x')).toBe('x.');
+        expect(detectManualNumbering('xi. This is item xi')).toBe('xi.');
+      });
+
+      it('should detect parenthesized roman numbering', () => {
+        expect(detectManualNumbering('(i) This is item i')).toBe('(i)');
+        expect(detectManualNumbering('(iv) This is item iv')).toBe('(iv)');
+      });
+    });
+
+    describe('whitespace handling', () => {
+      it('should detect numbering followed by multiple spaces', () => {
+        expect(detectManualNumbering('1.   This has multiple spaces')).toBe('1.');
+        expect(detectManualNumbering('a.    This has many spaces')).toBe('a.');
+      });
+
+      it('should detect numbering followed by tabs', () => {
+        expect(detectManualNumbering('1.\tThis has a tab')).toBe('1.');
+        expect(detectManualNumbering('a.\t\tThis has multiple tabs')).toBe('a.');
+      });
+
+      it('should detect numbering followed by mixed whitespace', () => {
+        expect(detectManualNumbering('1. \t This has mixed whitespace')).toBe('1.');
+      });
+    });
+
+    describe('edge cases and false positives', () => {
+      it('should not detect numbering without sufficient content', () => {
+        expect(detectManualNumbering('1.')).toBeUndefined();
+        expect(detectManualNumbering('1. ')).toBeUndefined();
+        expect(detectManualNumbering('a.')).toBeUndefined();
+      });
+
+      it('should not detect numbering without proper whitespace', () => {
+        expect(detectManualNumbering('1.This has no space')).toBeUndefined();
+        expect(detectManualNumbering('a.no space here')).toBeUndefined();
+      });
+
+      it('should not detect numbers in the middle of text', () => {
+        expect(detectManualNumbering('This is 1. not numbering')).toBeUndefined();
+        expect(detectManualNumbering('Text with a. in the middle')).toBeUndefined();
+      });
+
+      it('should handle empty or whitespace-only text', () => {
+        expect(detectManualNumbering('')).toBeUndefined();
+        expect(detectManualNumbering('   ')).toBeUndefined();
+        expect(detectManualNumbering('\t\n')).toBeUndefined();
+      });
+
+      it('should not detect uppercase letters', () => {
+        expect(detectManualNumbering('A. This should not match')).toBeUndefined();
+        expect(detectManualNumbering('Z. This should not match')).toBeUndefined();
+      });
+
+      it('should not detect uppercase roman numerals', () => {
+        expect(detectManualNumbering('I. This should not match')).toBeUndefined();
+        expect(detectManualNumbering('IV. This should not match')).toBeUndefined();
+      });
+    });
+  })
+
+  describe('validateManualNumbering', () => {
+    describe('valid numbering patterns', () => {
+      it('should validate decimal numbering with proper formatting', () => {
+        expect(validateManualNumbering('1.', '1.\tThis is proper content')).toBe(true);
+        expect(validateManualNumbering('1.', '1.   This has multiple spaces')).toBe(true);
+        expect(validateManualNumbering('1.2.', '1.2.\t\tThis is nested numbering')).toBe(true);
+      });
+
+      it('should validate alpha numbering with proper formatting', () => {
+        expect(validateManualNumbering('a.', 'a.\tThis is proper content')).toBe(true);
+        expect(validateManualNumbering('b.', 'b.   This has multiple spaces')).toBe(true);
+      });
+
+      it('should validate roman numbering with proper formatting', () => {
+        expect(validateManualNumbering('i.', 'i.\tThis is proper content')).toBe(true);
+        expect(validateManualNumbering('ii.', 'ii.   This has multiple spaces')).toBe(true);
+      });
+
+      it('should validate parenthesized numbering', () => {
+        expect(validateManualNumbering('(1)', '(1)\tThis is proper content')).toBe(true);
+        expect(validateManualNumbering('(a)', '(a)   This has multiple spaces')).toBe(true);
+      });
+    });
+
+    describe('invalid patterns', () => {
+      it('should reject numbering without proper whitespace', () => {
+        expect(validateManualNumbering('1.', '1. Short')).toBe(false); // Only one space
+        expect(validateManualNumbering('1.', '1.NoSpace')).toBe(false); // No space
+      });
+
+      it('should reject numbering without sufficient content', () => {
+        expect(validateManualNumbering('1.', '1.\tX')).toBe(false); // Too short content
+        expect(validateManualNumbering('1.', '1.   AB')).toBe(false); // Too short content
+      });
+
+      it('should reject overly long numbering', () => {
+        const longNumbering = '1.2.3.4.5.6.7.';
+        expect(validateManualNumbering(longNumbering, `${longNumbering}\tContent here`)).toBe(false);
+      });
+
+      it('should reject mismatched text', () => {
+        expect(validateManualNumbering('1.', 'a.\tThis does not match')).toBe(false);
+        expect(validateManualNumbering('a.', '1.\tThis does not match')).toBe(false);
+      });
+
+      it('should handle empty inputs', () => {
+        expect(validateManualNumbering('', '1.\tContent')).toBe(false);
+        expect(validateManualNumbering('1.', '')).toBe(false);
+        expect(validateManualNumbering('', '')).toBe(false);
+      });
+    });
+
+    describe('edge cases', () => {
+      it('should handle whitespace variations', () => {
+        expect(validateManualNumbering('1.', '1.\t\t\tLots of tabs and proper content')).toBe(true);
+        expect(validateManualNumbering('1.', '1.      Lots of spaces and proper content')).toBe(true);
+      });
+
+      it('should reject URL-like patterns', () => {
+        expect(validateManualNumbering('1.2.3.', '1.2.3.\twww.example.com')).toBe(true); // Valid if formatted properly
+        expect(validateManualNumbering('www.', 'www.\texample.com')).toBe(false); // Too long and not numeric
+      });
+    });
   })
 })

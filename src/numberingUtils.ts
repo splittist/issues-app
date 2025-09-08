@@ -464,3 +464,141 @@ export const trackStyleNumbering = (
   // Fallback to joining with dots if no lvlText template
   return formattedNumbers.join('.');
 };
+
+/**
+ * Extracts the raw text content from a paragraph element.
+ * @param paragraphElement - The XML element representing the paragraph.
+ * @returns The raw text content of the paragraph.
+ */
+export const extractParagraphText = (paragraphElement: Element): string => {
+  const textRuns = Array.from(paragraphElement.getElementsByTagName('w:r'));
+  let fullText = '';
+  
+  for (const textRun of textRuns) {
+    // Process each child node in order to maintain proper sequence
+    Array.from(textRun.childNodes).forEach(child => {
+      switch(child.nodeName) {
+        case 'w:t':
+        case 'w:delText':
+          fullText += child.textContent || '';
+          break;
+        case 'w:tab':
+          fullText += '\t';
+          break;
+        default:
+          // Ignore other elements for now
+          break;
+      }
+    });
+  }
+  
+  return fullText;
+};
+
+/**
+ * Detects manual numbering patterns in paragraph text.
+ * Looks for decimal, lower alpha, or lower roman numbering followed by tabs/spaces.
+ * @param paragraphText - The raw text content of the paragraph.
+ * @returns The detected numbering string or undefined if no pattern is found.
+ */
+export const detectManualNumbering = (paragraphText: string): string | undefined => {
+  if (!paragraphText || paragraphText.trim().length === 0) {
+    return undefined;
+  }
+  
+  // Regular expressions for different numbering patterns
+  const patterns = [
+    // Decimal numbering: "1.", "1.1.", "1.1.1.", etc. followed by whitespace
+    /^(\d+(?:\.\d+)*\.)\s+/,
+    
+    // Lower alpha numbering: "a.", "b.", "aa.", "ab.", etc. followed by whitespace
+    /^([a-z]+\.)\s+/,
+    
+    // Lower roman numbering: "i.", "ii.", "iii.", "iv.", etc. followed by whitespace
+    /^([ivxlcdm]+\.)\s+/,
+    
+    // Parenthesized decimal: "(1)", "(2)", etc. followed by whitespace
+    /^(\(\d+(?:\.\d+)*\))\s+/,
+    
+    // Parenthesized lower alpha: "(a)", "(b)", etc. followed by whitespace
+    /^(\([a-z]+\))\s+/,
+    
+    // Parenthesized lower roman: "(i)", "(ii)", etc. followed by whitespace
+    /^(\([ivxlcdm]+\))\s+/
+  ];
+  
+  const trimmedText = paragraphText.trim();
+  
+  for (const pattern of patterns) {
+    const match = trimmedText.match(pattern);
+    if (match) {
+      // Check if there's substantial content after the numbering
+      const remainingText = trimmedText.substring(match[0].length).trim();
+      if (remainingText.length > 0) {
+        return match[1]; // Return the numbering part without the trailing whitespace
+      }
+    }
+  }
+  
+  return undefined;
+};
+
+/**
+ * Validates if a detected numbering pattern is likely to be intentional manual numbering.
+ * This helps avoid false positives from text that coincidentally starts with numbers/letters.
+ * @param numberingText - The detected numbering text.
+ * @param paragraphText - The full paragraph text.
+ * @returns True if the numbering is likely intentional, false otherwise.
+ */
+export const validateManualNumbering = (numberingText: string, paragraphText: string): boolean => {
+  if (!numberingText || !paragraphText) {
+    return false;
+  }
+  
+  const trimmedText = paragraphText.trim();
+  
+  // Must start with the numbering
+  if (!trimmedText.startsWith(numberingText)) {
+    return false;
+  }
+  
+  // Get the text after the numbering
+  const afterNumbering = trimmedText.substring(numberingText.length);
+  
+  // Should be followed by at least one tab or multiple spaces (more than 1)
+  const followedByWhitespace = /^[\t\s]{2,}/.test(afterNumbering) || /^\t/.test(afterNumbering);
+  
+  if (!followedByWhitespace) {
+    return false;
+  }
+  
+  // Get the actual content after the whitespace
+  const content = afterNumbering.replace(/^[\t\s]+/, '');
+  
+  // Must have substantial content (at least 3 characters)
+  if (content.length < 3) {
+    return false;
+  }
+  
+  // Additional validation: the numbering shouldn't be too long
+  // (to avoid matching things like "www.example.com")
+  if (numberingText.length > 10) {
+    return false;
+  }
+  
+  // Reject patterns that don't start with numbers or common numbering patterns
+  // This helps avoid matching things like "www." or other non-numbering text
+  const startsWithValidPattern = 
+    /^\d/.test(numberingText) ||           // Starts with digit
+    /^[a-z]{1,2}\.$/.test(numberingText) ||   // Alpha pattern (a., b., aa., ab., but not www.)
+    /^[ivxlcdm]+\.$/.test(numberingText) || // Roman pattern (i., ii., etc.)
+    /^\(\d/.test(numberingText) ||        // Parenthesized digit
+    /^\([a-z]{1,2}\)$/.test(numberingText) || // Parenthesized alpha (single to double letters)
+    /^\([ivxlcdm]+\)$/.test(numberingText); // Parenthesized roman
+  
+  if (!startsWithValidPattern) {
+    return false;
+  }
+  
+  return true;
+};

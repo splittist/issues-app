@@ -26,7 +26,10 @@ import {
     initializeCounters,
     trackNumbering,
     extractParagraphStyle,
-    trackStyleNumbering
+    trackStyleNumbering,
+    extractParagraphText,
+    detectManualNumbering,
+    validateManualNumbering
 } from "./numberingUtils";
 import { buildRunProps } from "./styleUtils";
 
@@ -544,6 +547,15 @@ const processDocumentParagraphs = (
             numberingInfo = trackStyleNumbering(paragraphElement, styles, numIdToAbstractNumId, abstractNumIdToFormat, counters);
           }
         }
+        
+        // If no automatic numbering found, try to detect manual numbering
+        if (!numberingInfo) {
+          const paragraphText = extractParagraphText(paragraphElement);
+          const detectedNumbering = detectManualNumbering(paragraphText);
+          if (detectedNumbering && validateManualNumbering(detectedNumbering, paragraphText)) {
+            numberingInfo = detectedNumbering;
+          }
+        }
 
         extractedParagraphs.push({
           paragraph: documentParagraph,
@@ -608,6 +620,15 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
     // If no direct numbering, check for style-based numbering
     if (!numberingInfo) {
       numberingInfo = stylesXml ? trackStyleNumbering(paragraphElement, styles, numIdToAbstractNumId, abstractNumIdToFormat, styleCounters) : undefined;
+    }
+
+    // If no automatic numbering found, try to detect manual numbering
+    if (!numberingInfo) {
+      const paragraphText = extractParagraphText(paragraphElement);
+      const detectedNumbering = detectManualNumbering(paragraphText);
+      if (detectedNumbering && validateManualNumbering(detectedNumbering, paragraphText)) {
+        numberingInfo = detectedNumbering;
+      }
     }
 
     if (!numberingInfo && previousNumberingInfo) {
