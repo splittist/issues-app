@@ -133,22 +133,26 @@ const buildComments = (ids: string[], xmlComments: globalThis.Document): (Paragr
     // Format the date if available
     const formattedDate = dateStr ? formatCommentDate(dateStr) : '';
     
-    // Build identification text
-    let identificationText = `Comment ${id}`;
+    // Build identification text components
+    const commentAnchorText = `[Comment ${id}]`;
+    let additionalText = '';
     if (commenterName) {
-      identificationText += ` (${commenterName}`;
+      additionalText += ` (${commenterName}`;
       if (formattedDate) {
-        identificationText += `, ${formattedDate}`;
+        additionalText += `, ${formattedDate}`;
       }
-      identificationText += ')';
+      additionalText += ')';
     } else if (formattedDate) {
-      identificationText += ` (${formattedDate})`;
+      additionalText += ` (${formattedDate})`;
     }
-    identificationText += ': ';
+    additionalText += ': ';
     
-    // Create identification paragraph
+    // Create identification paragraph with anchor style for the comment identifier
     const identificationParagraph = new Paragraph({
-      children: [new TextRun({ text: identificationText, italics: true })]
+      children: [
+        new TextRun({ text: commentAnchorText, style: 'CommentAnchor' }),
+        new TextRun({ text: additionalText, italics: true })
+      ]
     });
     
     const contentParagraphs = Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph));
@@ -179,9 +183,12 @@ const buildFootnotes = (ids: string[], xmlFootnotes: globalThis.Document): (Para
     const paragraphs = element.getElementsByTagName('w:p');
     if (!paragraphs || paragraphs.length === 0) return [null];
     
-    // Create identification paragraph
+    // Create identification paragraph with anchor style
     const identificationParagraph = new Paragraph({
-      children: [new TextRun({ text: `Footnote ${id}: ` })]
+      children: [
+        new TextRun({ text: `[Footnote ${id}]`, style: 'FootnoteAnchor' }),
+        new TextRun({ text: ': ' })
+      ]
     });
     
     const contentParagraphs = Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph));
@@ -212,9 +219,12 @@ const buildEndnotes = (ids: string[], xmlEndnotes: globalThis.Document): (Paragr
     const paragraphs = element.getElementsByTagName('w:p');
     if (!paragraphs || paragraphs.length === 0) return [null];
     
-    // Create identification paragraph
+    // Create identification paragraph with anchor style
     const identificationParagraph = new Paragraph({
-      children: [new TextRun({ text: `Endnote ${id}: ` })]
+      children: [
+        new TextRun({ text: `[Endnote ${id}]`, style: 'EndnoteAnchor' }),
+        new TextRun({ text: ': ' })
+      ]
     });
     
     const contentParagraphs = Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph));
