@@ -508,14 +508,20 @@ export const detectManualNumbering = (paragraphText: string): string | undefined
   
   // Regular expressions for different numbering patterns
   const patterns = [
-    // Decimal numbering: "1.", "1.1.", "1.1.1.", etc. followed by whitespace
+    // Decimal numbering with period: "1.", "1.1.", "1.1.1.", etc. followed by whitespace
     /^(\d+(?:\.\d+)*\.)\s+/,
     
-    // Lower alpha numbering: "a.", "b.", "aa.", "ab.", etc. followed by whitespace
+    // Lower alpha numbering with period: "a.", "b.", "aa.", "ab.", etc. followed by whitespace
     /^([a-z]+\.)\s+/,
     
-    // Lower roman numbering: "i.", "ii.", "iii.", "iv.", etc. followed by whitespace
+    // Upper alpha numbering with period: "A.", "B.", "AA.", "AB.", etc. followed by whitespace
+    /^([A-Z]+\.)\s+/,
+    
+    // Lower roman numbering with period: "i.", "ii.", "iii.", "iv.", etc. followed by whitespace
     /^([ivxlcdm]+\.)\s+/,
+    
+    // Upper roman numbering with period: "I.", "II.", "III.", "IV.", etc. followed by whitespace
+    /^([IVXLCDM]+\.)\s+/,
     
     // Parenthesized decimal: "(1)", "(2)", etc. followed by whitespace
     /^(\(\d+(?:\.\d+)*\))\s+/,
@@ -523,8 +529,31 @@ export const detectManualNumbering = (paragraphText: string): string | undefined
     // Parenthesized lower alpha: "(a)", "(b)", etc. followed by whitespace
     /^(\([a-z]+\))\s+/,
     
+    // Parenthesized upper alpha: "(A)", "(B)", etc. followed by whitespace
+    /^(\([A-Z]+\))\s+/,
+    
     // Parenthesized lower roman: "(i)", "(ii)", etc. followed by whitespace
-    /^(\([ivxlcdm]+\))\s+/
+    /^(\([ivxlcdm]+\))\s+/,
+    
+    // Parenthesized upper roman: "(I)", "(II)", etc. followed by whitespace
+    /^(\([IVXLCDM]+\))\s+/,
+    
+    // Non-period patterns (require tab or multiple spaces to reduce false positives)
+    
+    // Decimal numbering without period: "1", "1.1", "1.1.1", etc. followed by tab or 2+ spaces
+    /^(\d+(?:\.\d+)*)(?:\t|\s{2,})/,
+    
+    // Lower alpha numbering without period: "a", "b", "aa", "ab", etc. followed by tab or 2+ spaces
+    /^([a-z]{1,2})(?:\t|\s{2,})/,
+    
+    // Upper alpha numbering without period: "A", "B", "AA", "AB", etc. followed by tab or 2+ spaces
+    /^([A-Z]{1,2})(?:\t|\s{2,})/,
+    
+    // Lower roman numbering without period: "i", "ii", "iii", "iv", etc. followed by tab or 2+ spaces
+    /^([ivxlcdm]+)(?:\t|\s{2,})/,
+    
+    // Upper roman numbering without period: "I", "II", "III", "IV", etc. followed by tab or 2+ spaces
+    /^([IVXLCDM]+)(?:\t|\s{2,})/
   ];
   
   const trimmedText = paragraphText.trim();
@@ -589,12 +618,16 @@ export const validateManualNumbering = (numberingText: string, paragraphText: st
   // Reject patterns that don't start with numbers or common numbering patterns
   // This helps avoid matching things like "www." or other non-numbering text
   const startsWithValidPattern = 
-    /^\d/.test(numberingText) ||           // Starts with digit
-    /^[a-z]{1,2}\.$/.test(numberingText) ||   // Alpha pattern (a., b., aa., ab., but not www.)
-    /^[ivxlcdm]+\.$/.test(numberingText) || // Roman pattern (i., ii., etc.)
-    /^\(\d/.test(numberingText) ||        // Parenthesized digit
-    /^\([a-z]{1,2}\)$/.test(numberingText) || // Parenthesized alpha (single to double letters)
-    /^\([ivxlcdm]+\)$/.test(numberingText); // Parenthesized roman
+    /^\d/.test(numberingText) ||                      // Starts with digit
+    /^[a-z]{1,2}\.?$/.test(numberingText) ||         // Lower alpha pattern (a., b., aa., ab., a, b, aa, ab)
+    /^[A-Z]{1,2}\.?$/.test(numberingText) ||         // Upper alpha pattern (A., B., AA., AB., A, B, AA, AB)
+    /^[ivxlcdm]+\.?$/.test(numberingText) ||         // Lower roman pattern (i., ii., i, ii, etc.)
+    /^[IVXLCDM]+\.?$/.test(numberingText) ||         // Upper roman pattern (I., II., I, II, etc.)
+    /^\(\d/.test(numberingText) ||                   // Parenthesized digit
+    /^\([a-z]{1,2}\)$/.test(numberingText) ||        // Parenthesized lower alpha
+    /^\([A-Z]{1,2}\)$/.test(numberingText) ||        // Parenthesized upper alpha
+    /^\([ivxlcdm]+\)$/.test(numberingText) ||        // Parenthesized lower roman
+    /^\([IVXLCDM]+\)$/.test(numberingText);          // Parenthesized upper roman
   
   if (!startsWithValidPattern) {
     return false;

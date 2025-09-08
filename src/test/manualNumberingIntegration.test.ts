@@ -177,6 +177,54 @@ describe('Manual Numbering Integration', () => {
         console.log(`  "${text}" → Before: "${beforeReference}", After: "${afterReference}"`);
       });
     });
+
+    it('should handle new uppercase and non-period numbering patterns', () => {
+      // Test the enhanced functionality added to meet the requirements:
+      // 1. Upper Alpha and Upper Roman detection
+      // 2. Support for numbering without trailing periods
+      // 3. Leading whitespace handling
+      
+      const enhancedTestCases = [
+        // Uppercase alpha with periods
+        { text: 'A.\tFirst uppercase alpha item', expected: 'A.' },
+        { text: 'B.\tSecond uppercase alpha item', expected: 'B.' },
+        { text: 'AA.\tMulti-letter uppercase alpha', expected: 'AA.' },
+        
+        // Uppercase roman with periods  
+        { text: 'I.\tFirst uppercase roman item', expected: 'I.' },
+        { text: 'II.\tSecond uppercase roman item', expected: 'II.' },
+        { text: 'IV.\tFourth uppercase roman item', expected: 'IV.' },
+        { text: 'X.\tTenth uppercase roman item', expected: 'X.' },
+        
+        // Non-period numbering (requires tab or 2+ spaces)
+        { text: '1\tDecimal without period', expected: '1' },
+        { text: 'a\tLowercase alpha without period', expected: 'a' },
+        { text: 'A\tUppercase alpha without period', expected: 'A' },
+        { text: 'i\tLowercase roman without period', expected: 'i' },
+        { text: 'I\tUppercase roman without period', expected: 'I' },
+        { text: 'IV  Uppercase roman with multiple spaces', expected: 'IV' },
+        
+        // Leading whitespace handling
+        { text: '   A.\tUppercase alpha with leading spaces', expected: 'A.' },
+        { text: '\t\tI.\tUppercase roman with leading tabs', expected: 'I.' },
+        { text: ' \t A\tMixed whitespace with non-period', expected: 'A' },
+        
+        // Parenthesized uppercase patterns
+        { text: '(A)\tParenthesized uppercase alpha', expected: '(A)' },
+        { text: '(I)\tParenthesized uppercase roman', expected: '(I)' },
+        { text: '(IV)\tParenthesized complex uppercase roman', expected: '(IV)' }
+      ];
+
+      enhancedTestCases.forEach(testCase => {
+        const detected = detectManualNumbering(testCase.text);
+        const isValid = detected ? validateManualNumbering(detected, testCase.text) : false;
+        const result = isValid ? detected : undefined;
+
+        expect(result).toBe(testCase.expected);
+      });
+
+      console.log('✓ Enhanced numbering detection working correctly for all new patterns');
+    });
   });
 
   describe('Edge cases and robustness', () => {
@@ -210,7 +258,15 @@ describe('Manual Numbering Integration', () => {
         '1.This has no space after the dot',
         'a.No space here either',
         '1. X', // Too short content
-        'a. Y'  // Too short content
+        'a. Y',  // Too short content
+        // New false positives to test enhanced patterns
+        'I went to the store', // Should not match 'I' as uppercase roman
+        'A quick brown fox', // Should not match 'A' as uppercase alpha  
+        'a word in the sentence', // Should not match 'a' as lowercase alpha
+        'can see this clearly', // Should not match 'c' as alpha
+        'ice cream is delicious', // Should not match 'ice' as roman
+        'Individual items here', // Should not match 'I' as roman
+        'At the beginning of time' // Should not match 'A' as alpha
       ];
 
       falsePositives.forEach(text => {
