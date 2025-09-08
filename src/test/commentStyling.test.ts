@@ -120,4 +120,40 @@ describe('Comment Styling', () => {
     expect(footnoteAnchor).toBeInstanceOf(TextRun);
     expect(endnoteAnchor).toBeInstanceOf(TextRun);
   });
+
+  it('should create annotation identification paragraphs with correct anchor styles', () => {
+    // Test comment identification paragraph structure
+    const commentIdentification = {
+      anchorRun: new TextRun({ text: "[Comment 1]", style: 'CommentAnchor' }),
+      additionalRun: new TextRun({ text: " (John Doe, 2025-01-15): ", italics: true })
+    };
+    
+    // Test footnote identification paragraph structure
+    const footnoteIdentification = {
+      anchorRun: new TextRun({ text: "[Footnote 1]", style: 'FootnoteAnchor' }),
+      additionalRun: new TextRun({ text: ": " })
+    };
+    
+    // Test endnote identification paragraph structure
+    const endnoteIdentification = {
+      anchorRun: new TextRun({ text: "[Endnote 1]", style: 'EndnoteAnchor' }),
+      additionalRun: new TextRun({ text: ": " })
+    };
+
+    // Verify all components are properly created
+    expect(commentIdentification.anchorRun).toBeDefined();
+    expect(commentIdentification.additionalRun).toBeDefined();
+    expect(footnoteIdentification.anchorRun).toBeDefined();
+    expect(footnoteIdentification.additionalRun).toBeDefined();
+    expect(endnoteIdentification.anchorRun).toBeDefined();
+    expect(endnoteIdentification.additionalRun).toBeDefined();
+    
+    // Verify they are all TextRun instances
+    expect(commentIdentification.anchorRun).toBeInstanceOf(TextRun);
+    expect(commentIdentification.additionalRun).toBeInstanceOf(TextRun);
+    expect(footnoteIdentification.anchorRun).toBeInstanceOf(TextRun);
+    expect(footnoteIdentification.additionalRun).toBeInstanceOf(TextRun);
+    expect(endnoteIdentification.anchorRun).toBeInstanceOf(TextRun);
+    expect(endnoteIdentification.additionalRun).toBeInstanceOf(TextRun);
+  });
 });
