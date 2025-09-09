@@ -854,21 +854,21 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
                                   text: "Paragraph",
                                   style: 'Strong',
                     })],
-                      width: { size: 42, type:WidthType.PERCENTAGE },
+                      width: { size: 31, type:WidthType.PERCENTAGE },
                     }),
                     new TableCell({
                       children: [new Paragraph({
                                   text: "Annotation",
                                   style: 'Strong',
                     })],
-                      width: { size: 40, type: WidthType.PERCENTAGE },
+                      width: { size: 31, type: WidthType.PERCENTAGE },
                     }),
                     new TableCell({
                       children: [new Paragraph({
                                   text: "Response",
                                   style: 'Strong',
                     })],
-                      width: { size: 10, type: WidthType.PERCENTAGE },
+                      width: { size: 30, type: WidthType.PERCENTAGE },
                     }),
                   ] : [
                     new TableCell({
@@ -883,14 +883,14 @@ export const buildSections = (extractedParagraphs: ExtractedParagraph[][], names
                                   text: "Paragraph",
                                   style: 'Strong',
                     })],
-                      width: { size: 82, type:WidthType.PERCENTAGE },
+                      width: { size: 46, type:WidthType.PERCENTAGE },
                     }),
                     new TableCell({
                       children: [new Paragraph({
                                   text: "Response",
                                   style: 'Strong',
                     })],
-                      width: { size: 10, type: WidthType.PERCENTAGE },
+                      width: { size: 46, type: WidthType.PERCENTAGE },
                     }),
                   ],
                 }),
