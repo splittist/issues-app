@@ -170,11 +170,11 @@ const buildComments = (
     // Format the date if available
     const formattedDate = dateStr ? formatCommentDate(dateStr) : '';
     
-    // Extract w15:paraId from first paragraph to find extended comment info
+    // Extract w14:paraId from first paragraph to find extended comment info
     let extendedInfo: ExtendedCommentInfo | undefined;
     if (extendedCommentsMap && paragraphs.length > 0) {
       const firstParagraph = paragraphs[0];
-      const paraId = firstParagraph.getAttribute('w15:paraId') || firstParagraph.getAttribute('paraId');
+      const paraId = firstParagraph.getAttribute('w14:paraId') || firstParagraph.getAttribute('paraId');
       if (paraId) {
         extendedInfo = extendedCommentsMap.get(paraId);
       }
@@ -1044,6 +1044,7 @@ const paragraphHasTextContent = (paragraphElement: Element): boolean => {
   
   return false;
 };
+
 
 
 
