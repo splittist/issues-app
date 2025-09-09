@@ -59,3 +59,19 @@ export type ULType = (typeof UnderlineType)[keyof typeof UnderlineType];
  * Type representing run content.
  */
 export type IRunContent = string | NoBreakHyphen | SoftHyphen | CarriageReturn | Break | Tab;
+
+/**
+ * Interface representing extended comment information from commentsExtended.xml.
+ */
+export interface ExtendedCommentInfo {
+  paraId: string;
+  paraIdParent?: string;
+  done?: boolean;
+}
+
+/**
+ * Interface representing a mapping of comment IDs to their extended information.
+ */
+export interface ExtendedCommentsMap {
+  [commentId: string]: ExtendedCommentInfo;
+}
