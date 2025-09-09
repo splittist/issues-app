@@ -3,7 +3,7 @@ import { TextRun } from 'docx';
 
 describe('Comment Styling', () => {
   it('should create styled comment anchor TextRun with named style', () => {
-    const commentAnchorText = "[Comment 1]";
+    const commentAnchorText = "[Cmt 1]";
     const styledCommentAnchor = new TextRun({
       text: commentAnchorText,
       style: 'CommentAnchor'
@@ -14,7 +14,7 @@ describe('Comment Styling', () => {
   });
 
   it('should create styled footnote anchor TextRun with named style', () => {
-    const footnoteAnchorText = "[Footnote 1]";
+    const footnoteAnchorText = "[Fn 1]";
     const styledFootnoteAnchor = new TextRun({
       text: footnoteAnchorText,
       style: 'FootnoteAnchor'
@@ -25,7 +25,7 @@ describe('Comment Styling', () => {
   });
 
   it('should create styled endnote anchor TextRun with named style', () => {
-    const endnoteAnchorText = "[Endnote 1]";
+    const endnoteAnchorText = "[En 1]";
     const styledEndnoteAnchor = new TextRun({
       text: endnoteAnchorText,
       style: 'EndnoteAnchor'
@@ -36,7 +36,7 @@ describe('Comment Styling', () => {
   });
 
   it('should create styled comment identification TextRun with italics', () => {
-    const identificationText = "Comment 1 (John Doe, 2025-01-15): ";
+    const identificationText = "Cmt 1 (John Doe, 2025-01-15): ";
     const styledIdentificationText = new TextRun({
       text: identificationText,
       italics: true
@@ -57,19 +57,19 @@ describe('Comment Styling', () => {
     
     // Comment anchor with named style
     results.push(new TextRun({
-      text: "[Comment 1]",
+      text: "[Cmt 1]",
       style: 'CommentAnchor'
     }));
     
     // Footnote anchor with named style
     results.push(new TextRun({
-      text: "[Footnote 1]",
+      text: "[Fn 1]",
       style: 'FootnoteAnchor'
     }));
     
     // Endnote anchor with named style
     results.push(new TextRun({
-      text: "[Endnote 1]",
+      text: "[En 1]",
       style: 'EndnoteAnchor'
     }));
     
@@ -96,19 +96,19 @@ describe('Comment Styling', () => {
     
     // Test that anchor style overwrites runProps style when placed after spread
     const commentAnchor = new TextRun({
-      text: "[Comment 1]",
+      text: "[Cmt 1]",
       ...runPropsWithStyle,
       style: 'CommentAnchor'
     });
     
     const footnoteAnchor = new TextRun({
-      text: "[Footnote 1]",
+      text: "[Fn 1]",
       ...runPropsWithStyle,
       style: 'FootnoteAnchor'
     });
     
     const endnoteAnchor = new TextRun({
-      text: "[Endnote 1]",
+      text: "[En 1]",
       ...runPropsWithStyle,
       style: 'EndnoteAnchor'
     });
@@ -124,19 +124,19 @@ describe('Comment Styling', () => {
   it('should create annotation identification paragraphs with correct anchor styles', () => {
     // Test comment identification paragraph structure
     const commentIdentification = {
-      anchorRun: new TextRun({ text: "[Comment 1]", style: 'CommentAnchor' }),
+      anchorRun: new TextRun({ text: "[Cmt 1]", style: 'CommentAnchor' }),
       additionalRun: new TextRun({ text: " (John Doe, 2025-01-15): ", italics: true })
     };
     
     // Test footnote identification paragraph structure
     const footnoteIdentification = {
-      anchorRun: new TextRun({ text: "[Footnote 1]", style: 'FootnoteAnchor' }),
+      anchorRun: new TextRun({ text: "[Fn 1]", style: 'FootnoteAnchor' }),
       additionalRun: new TextRun({ text: ": " })
     };
     
     // Test endnote identification paragraph structure
     const endnoteIdentification = {
-      anchorRun: new TextRun({ text: "[Endnote 1]", style: 'EndnoteAnchor' }),
+      anchorRun: new TextRun({ text: "[En 1]", style: 'EndnoteAnchor' }),
       additionalRun: new TextRun({ text: ": " })
     };
 

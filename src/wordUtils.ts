@@ -181,7 +181,7 @@ const buildComments = (
     }
     
     // Build identification text components
-    const commentAnchorText = `[Comment ${id}]`;
+    const commentAnchorText = `[Cmt ${id}]`;
     let additionalText = '';
     if (commenterName) {
       additionalText += ` (${commenterName}`;
@@ -244,7 +244,7 @@ const buildFootnotes = (ids: string[], xmlFootnotes: globalThis.Document): (Para
     // Create identification paragraph with anchor style
     const identificationParagraph = new Paragraph({
       children: [
-        new TextRun({ text: `[Footnote ${id}]`, style: 'FootnoteAnchor' }),
+        new TextRun({ text: `[Fn ${id}]`, style: 'FootnoteAnchor' }),
         new TextRun({ text: ': ' })
       ]
     });
@@ -280,7 +280,7 @@ const buildEndnotes = (ids: string[], xmlEndnotes: globalThis.Document): (Paragr
     // Create identification paragraph with anchor style
     const identificationParagraph = new Paragraph({
       children: [
-        new TextRun({ text: `[Endnote ${id}]`, style: 'EndnoteAnchor' }),
+        new TextRun({ text: `[En ${id}]`, style: 'EndnoteAnchor' }),
         new TextRun({ text: ': ' })
       ]
     });
@@ -518,7 +518,7 @@ const buildTextRun = (runElement: Element, style: string = ''): TextRun[] => {
         
         // Create a styled TextRun for the comment anchor
         const commentId = (child as Element).getAttribute('w:id');
-        const commentText = commentId ? `[Comment ${commentId}]` : '[Comment]';
+        const commentText = commentId ? `[Cmt ${commentId}]` : '[Cmt]';
         results.push(new TextRun({
           text: commentText,
           ...runProps,
@@ -538,7 +538,7 @@ const buildTextRun = (runElement: Element, style: string = ''): TextRun[] => {
         
         // Create a styled TextRun for the footnote anchor
         const footnoteId = (child as Element).getAttribute('w:id');
-        const footnoteText = footnoteId ? `[Footnote ${footnoteId}]` : '[Footnote]';
+        const footnoteText = footnoteId ? `[Fn ${footnoteId}]` : '[Fn]';
         results.push(new TextRun({
           text: footnoteText,
           ...runProps,
@@ -558,7 +558,7 @@ const buildTextRun = (runElement: Element, style: string = ''): TextRun[] => {
         
         // Create a styled TextRun for the endnote anchor
         const endnoteId = (child as Element).getAttribute('w:id');
-        const endnoteText = endnoteId ? `[Endnote ${endnoteId}]` : '[Endnote]';
+        const endnoteText = endnoteId ? `[En ${endnoteId}]` : '[En]';
         results.push(new TextRun({
           text: endnoteText,
           ...runProps,
