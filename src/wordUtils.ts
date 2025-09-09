@@ -2,6 +2,7 @@ import JSZip from "jszip";
 import { Criteria, 
     ExtractedParagraph,
     ParagraphSource,
+    ExtendedCommentInfo,
     } from "./types";
 import { Paragraph, 
     ParagraphChild, 
@@ -101,12 +102,48 @@ const extractEndnoteIds = (paragraph: Element):string[] => {
 };
 
 /**
+ * Parses extended comments information from commentsExtended.xml.
+ * @param xmlCommentsExtended - The XML document containing extended comments.
+ * @returns A map of paraId to extended comment information.
+ */
+const parseExtendedComments = (xmlCommentsExtended: globalThis.Document): Map<string, ExtendedCommentInfo> => {
+  const extendedCommentsMap = new Map<string, ExtendedCommentInfo>();
+  
+  // Look for w15:commentEx elements
+  const commentExElements = xmlCommentsExtended.querySelectorAll('commentEx, w15\\:commentEx');
+  
+  for (const commentExElement of commentExElements) {
+    const paraId = commentExElement.getAttribute('w15:paraId') || commentExElement.getAttribute('paraId');
+    if (paraId) {
+      const paraIdParent = commentExElement.getAttribute('w15:paraIdParent') || commentExElement.getAttribute('paraIdParent');
+      const doneAttr = commentExElement.getAttribute('w15:done') || commentExElement.getAttribute('done');
+      const done = doneAttr === '1';
+      
+      const extendedInfo: ExtendedCommentInfo = {
+        paraId,
+        ...(paraIdParent && { paraIdParent }),
+        ...(doneAttr && { done })
+      };
+      
+      extendedCommentsMap.set(paraId, extendedInfo);
+    }
+  }
+  
+  return extendedCommentsMap;
+};
+
+/**
  * Builds comments from given comment IDs and XML comments document.
  * @param ids - An array of comment IDs.
  * @param xmlComments - The XML document containing comments.
+ * @param extendedCommentsMap - Optional map of extended comment information from commentsExtended.xml.
  * @returns An array of Paragraph objects or null.
  */
-const buildComments = (ids: string[], xmlComments: globalThis.Document): (Paragraph | null)[] => {
+const buildComments = (
+  ids: string[], 
+  xmlComments: globalThis.Document, 
+  extendedCommentsMap?: Map<string, ExtendedCommentInfo>
+): (Paragraph | null)[] => {
   const namespaceURI = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
   const commentElements = ids.map(id => {
     const comments = xmlComments.getElementsByTagNameNS(namespaceURI,'comment');
@@ -133,6 +170,16 @@ const buildComments = (ids: string[], xmlComments: globalThis.Document): (Paragr
     // Format the date if available
     const formattedDate = dateStr ? formatCommentDate(dateStr) : '';
     
+    // Extract w15:paraId from first paragraph to find extended comment info
+    let extendedInfo: ExtendedCommentInfo | undefined;
+    if (extendedCommentsMap && paragraphs.length > 0) {
+      const firstParagraph = paragraphs[0];
+      const paraId = firstParagraph.getAttribute('w15:paraId') || firstParagraph.getAttribute('paraId');
+      if (paraId) {
+        extendedInfo = extendedCommentsMap.get(paraId);
+      }
+    }
+    
     // Build identification text components
     const commentAnchorText = `[Comment ${id}]`;
     let additionalText = '';
@@ -145,14 +192,25 @@ const buildComments = (ids: string[], xmlComments: globalThis.Document): (Paragr
     } else if (formattedDate) {
       additionalText += ` (${formattedDate})`;
     }
+    
+    // Add resolved indicator if comment is marked as done
+    if (extendedInfo?.done) {
+      additionalText += ' ✓';
+    }
+    
     additionalText += ': ';
     
     // Create identification paragraph with anchor style for the comment identifier
+    // Add indentation if this comment has a parent
     const identificationParagraph = new Paragraph({
       children: [
         new TextRun({ text: commentAnchorText, style: 'CommentAnchor' }),
         new TextRun({ text: additionalText, italics: true })
-      ]
+      ],
+      // Add indent if comment has a parent (threaded comment)
+      ...(extendedInfo?.paraIdParent && {
+        indent: { left: 720 } // 0.5 inch indent (720 twips)
+      })
     });
     
     const contentParagraphs = Array.from(paragraphs).map(paragraph => buildDocumentParagraph(paragraph));
@@ -261,6 +319,21 @@ const getCommentsDocument = async (zip: JSZip): Promise<globalThis.Document | nu
 
   const commentParser = new DOMParser();
   return commentParser.parseFromString(commentsXml, 'application/xml');
+}
+
+/**
+ * Retrieves the commentsExtended document from the given zip file.
+ * @param zip - The JSZip object representing the .docx file.
+ * @returns A promise that resolves to the commentsExtended document or null.
+ */
+const getCommentsExtendedDocument = async (zip: JSZip): Promise<globalThis.Document | null> => {
+  const commentsExtendedXml = await zip.file('word/commentsExtended.xml')?.async('string');
+  if (!commentsExtendedXml) {
+    return null;
+  }
+
+  const commentExtendedParser = new DOMParser();
+  return commentExtendedParser.parseFromString(commentsExtendedXml, 'application/xml');
 }
 
 /**
@@ -533,7 +606,8 @@ const processDocumentParagraphs = (
   styles?: Map<string, StyleInfo>,
   numIdToAbstractNumId?: Map<string, string>,
   abstractNumIdToFormat?: Map<string, { numFmt: string, lvlText: string }[]>,
-  counters?: number[]
+  counters?: number[],
+  extendedCommentsMap?: Map<string, ExtendedCommentInfo>
 ): ExtractedParagraph[] => {
   const paragraphs = Array.from(document.getElementsByTagName('w:p'));
   const extractedParagraphs: ExtractedParagraph[] = [];
@@ -543,7 +617,7 @@ const processDocumentParagraphs = (
       // Check if the paragraph has any text content before including it
       if (paragraphHasTextContent(paragraphElement)) {
         const commentIds = extractCommentIds(paragraphElement);
-        const comments = commentsXml ? buildComments(commentIds, commentsXml) : [];
+        const comments = commentsXml ? buildComments(commentIds, commentsXml, extendedCommentsMap) : [];
         const documentParagraph = buildDocumentParagraph(paragraphElement);
         const styleId = extractParagraphStyle(paragraphElement);
         
@@ -593,6 +667,7 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
   const zip = await JSZip.loadAsync(arrayBuffer);
   const documentXml = await getMainDocument(zip);
   const commentsXml = await getCommentsDocument(zip);
+  const commentsExtendedXml = await getCommentsExtendedDocument(zip);
   const headerDocs = await getHeaderDocuments(zip);
   const footerDocs = await getFooterDocuments(zip);
   const footnotesXml = await getFootnotesDocument(zip);
@@ -604,6 +679,9 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
 
   const { numIdToAbstractNumId, abstractNumIdToFormat } = numberingXml ? buildNumberingMaps(numberingXml) : { numIdToAbstractNumId: new Map<string, string>(), abstractNumIdToFormat: new Map<string, { numFmt: string, lvlText: string }[]>() };
   const styles = stylesXml ? buildStyleMaps(stylesXml) : new Map<string, StyleInfo>();
+  
+  // Parse extended comments information if available
+  const extendedCommentsMap = commentsExtendedXml ? parseExtendedComments(commentsExtendedXml) : undefined;
 
   let currentSection = 1;
   let currentPage = 1;
@@ -656,7 +734,7 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
         
         // Add comments
         if (commentsXml && commentIds.length > 0) {
-          allComments = [...allComments, ...buildComments(commentIds, commentsXml)];
+          allComments = [...allComments, ...buildComments(commentIds, commentsXml, extendedCommentsMap)];
         }
         
         // Add footnotes
@@ -707,7 +785,8 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
           styles,
           numIdToAbstractNumId,
           abstractNumIdToFormat,
-          headerFooterCounters
+          headerFooterCounters,
+          extendedCommentsMap
         );
         interestingParagraphs.push(...headerParagraphs);
       }
@@ -722,7 +801,8 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
           styles,
           numIdToAbstractNumId,
           abstractNumIdToFormat,
-          headerFooterCounters
+          headerFooterCounters,
+          extendedCommentsMap
         );
         interestingParagraphs.push(...footerParagraphs);
       }
@@ -742,7 +822,8 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
       styles,
       numIdToAbstractNumId,
       abstractNumIdToFormat,
-      headerFooterCounters
+      headerFooterCounters,
+      extendedCommentsMap
     );
     interestingParagraphs.push(...headerParagraphs);
   }
@@ -757,7 +838,8 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
       styles,
       numIdToAbstractNumId,
       abstractNumIdToFormat,
-      headerFooterCounters
+      headerFooterCounters,
+      extendedCommentsMap
     );
     interestingParagraphs.push(...footerParagraphs);
   }
