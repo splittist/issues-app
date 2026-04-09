@@ -365,6 +365,7 @@ describe('numberingUtils', () => {
         getAttribute: (attr: string) => attr === 'w:abstractNumId' ? '0' : null,
         getElementsByTagName: () => [
           {
+            getAttribute: (attr: string) => attr === 'w:ilvl' ? '0' : null,
             getElementsByTagName: () => [
               { getAttribute: (attr: string) => attr === 'w:val' ? 'decimal' : null }
             ]
@@ -405,8 +406,8 @@ describe('numberingUtils', () => {
 
       expect(result.numIdToAbstractNumId.get('7')).toBe('10')
       expect(result.abstractNumIdToFormat.get('10')).toEqual([
-        { numFmt: 'decimal', lvlText: '%1.' },
-        { numFmt: 'lowerLetter', lvlText: '%1.%2.' }
+        { numFmt: 'decimal', lvlText: '%1.', start: 1 },
+        { numFmt: 'lowerLetter', lvlText: '%1.%2.', start: 1 }
       ])
     })
   })
@@ -597,9 +598,9 @@ describe('numberingUtils', () => {
     it('should demonstrate fully qualified numbering with lvlText templates', () => {
       // Mock data structure simulating Word document numbering
       const formats = [
-        { numFmt: 'decimal', lvlText: '%1.' },           // Level 0: "1."
-        { numFmt: 'decimal', lvlText: '%1.%2.' },        // Level 1: "1.1."
-        { numFmt: 'lowerRoman', lvlText: '%1.%2(%3)' },  // Level 2: "1.1(i)"
+        { numFmt: 'decimal', lvlText: '%1.', start: 1 },           // Level 0: "1."
+        { numFmt: 'decimal', lvlText: '%1.%2.', start: 1 },        // Level 1: "1.1."
+        { numFmt: 'lowerRoman', lvlText: '%1.%2(%3)', start: 1 },  // Level 2: "1.1(i)"
       ];
       
       // Simulate counters at level 2 with values [2, 1, 3]
@@ -625,9 +626,9 @@ describe('numberingUtils', () => {
 
     it('should handle different numbering formats properly', () => {
       const formats = [
-        { numFmt: 'upperLetter', lvlText: '%1)' },        // Level 0: "A)"
-        { numFmt: 'lowerLetter', lvlText: '%1)%2)' },     // Level 1: "A)a)"
-        { numFmt: 'decimal', lvlText: '%1)%2)%3.' },      // Level 2: "A)a)1."
+        { numFmt: 'upperLetter', lvlText: '%1)', start: 1 },        // Level 0: "A)"
+        { numFmt: 'lowerLetter', lvlText: '%1)%2)', start: 1 },     // Level 1: "A)a)"
+        { numFmt: 'decimal', lvlText: '%1)%2)%3.', start: 1 },      // Level 2: "A)a)1."
       ];
       
       const counters = [3, 2, 5]; // C, b, 5
@@ -650,9 +651,9 @@ describe('numberingUtils', () => {
       
       // Mock Word document numbering structure for a 3-level hierarchy
       const formats = [
-        { numFmt: 'decimal', lvlText: '%1.' },           // Level 0: "1."
-        { numFmt: 'decimal', lvlText: '%1.%2.' },        // Level 1: "1.1."
-        { numFmt: 'lowerRoman', lvlText: '%1.%2(%3)' },  // Level 2: "1.1(i)"
+        { numFmt: 'decimal', lvlText: '%1.', start: 1 },           // Level 0: "1."
+        { numFmt: 'decimal', lvlText: '%1.%2.', start: 1 },        // Level 1: "1.1."
+        { numFmt: 'lowerRoman', lvlText: '%1.%2(%3)', start: 1 },  // Level 2: "1.1(i)"
       ];
       
       // Simulate being at the third level (index 2) of section 2.1 with Roman numeral i
@@ -688,8 +689,8 @@ describe('numberingUtils', () => {
       const numIdToAbstractNumId = new Map([['1', 'abstract-1']])
       const abstractNumIdToFormat = new Map([
         ['abstract-1', [
-          { numFmt: 'decimal', lvlText: '%1.' },
-          { numFmt: 'decimal', lvlText: '%1.%2.' }
+          { numFmt: 'decimal', lvlText: '%1.', start: 1 },
+          { numFmt: 'decimal', lvlText: '%1.%2.', start: 1 }
         ]]
       ])
       const counters = initializeCounters(3)
@@ -714,8 +715,8 @@ describe('numberingUtils', () => {
         ['2', 'abstract-2']
       ])
       const abstractNumIdToFormat = new Map([
-        ['abstract-1', [{ numFmt: 'decimal', lvlText: '%1.' }]],
-        ['abstract-2', [{ numFmt: 'upperLetter', lvlText: '%1.' }]]
+        ['abstract-1', [{ numFmt: 'decimal', lvlText: '%1.', start: 1 }]],
+        ['abstract-2', [{ numFmt: 'upperLetter', lvlText: '%1.', start: 1 }]]
       ])
 
       const firstListCounters = initializeCounters(2)
@@ -740,7 +741,7 @@ describe('numberingUtils', () => {
         ['2', 'abstract-1']
       ])
       const abstractNumIdToFormat = new Map([
-        ['abstract-1', [{ numFmt: 'decimal', lvlText: '%1.' }]]
+        ['abstract-1', [{ numFmt: 'decimal', lvlText: '%1.', start: 1 }]]
       ])
 
       const firstListCounters = initializeCounters(2)
@@ -769,8 +770,8 @@ describe('numberingUtils', () => {
       const numIdToAbstractNumId = new Map([['1', 'abstract-1']])
       const abstractNumIdToFormat = new Map([
         ['abstract-1', [
-          { numFmt: 'decimal', lvlText: '%1.' },
-          { numFmt: 'lowerLetter', lvlText: '%1.%2.' }
+          { numFmt: 'decimal', lvlText: '%1.', start: 1 },
+          { numFmt: 'lowerLetter', lvlText: '%1.%2.', start: 1 }
         ]]
       ])
       const counters = initializeCounters(3)

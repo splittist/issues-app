@@ -4,10 +4,18 @@
 
 type NumberFormatter = (num: number) => string;
 
-type NumberingLevelFormat = {
+export type NumberingLevelFormat = {
   lvlText: string;
   numFmt: string;
+  start: number;
+  lvlRestart?: number;
 };
+
+export type NumberingLevelOverride = {
+  startOverride?: number;
+};
+
+export type NumberingCounterState = number[] | Map<string, number[]>;
 
 type ManualNumberingPattern = {
   pattern: RegExp;
@@ -50,12 +58,58 @@ const formatNumberSequence = (counters: number[], formats: NumberingLevelFormat[
   });
 };
 
+const resolveCounters = (counters: NumberingCounterState, key: string, maxLevels: number): number[] => {
+  if (Array.isArray(counters)) {
+    return counters;
+  }
+
+  const existingCounters = counters.get(key);
+  if (existingCounters) {
+    return existingCounters;
+  }
+
+  const initializedCounters = initializeCounters(maxLevels);
+  counters.set(key, initializedCounters);
+  return initializedCounters;
+};
+
+const applyLevelUpdate = (
+  counters: number[],
+  level: number,
+  formats: NumberingLevelFormat[]
+): number[] => {
+  counters[level]++;
+
+  for (let i = level + 1; i < counters.length; i++) {
+    const restartLevel = formats[i]?.lvlRestart;
+    if (restartLevel === 0) {
+      continue;
+    }
+
+    const shouldReset =
+      restartLevel === undefined
+        ? level <= i - 1
+        : restartLevel - 1 <= level;
+
+    if (shouldReset) {
+      counters[i] = 0;
+    }
+  }
+
+  return counters;
+};
+
 const renderTrackedNumbering = (
   level: number,
   formats: NumberingLevelFormat[],
-  counters: number[]
+  counters: number[],
+  levelOverride?: NumberingLevelOverride
 ): string => {
-  updateCounters(counters, level);
+  const startingValue = levelOverride?.startOverride ?? formats[level]?.start ?? 1;
+  if (counters[level] === 0) {
+    counters[level] = startingValue - 1;
+  }
+  applyLevelUpdate(counters, level, formats);
   const formattedNumbers = formatNumberSequence(counters, formats, level);
   const currentFormat = formats[level];
 
@@ -302,6 +356,7 @@ export const processLvlText = (template: string, formattedNumbers: string[]): st
 export const buildNumberingMaps = (numberingDoc: globalThis.Document) => {
   const numIdToAbstractNumId = new Map<string, string>();
   const abstractNumIdToFormat = new Map<string, NumberingLevelFormat[]>();
+  const numIdToLevelOverrides = new Map<string, Map<number, NumberingLevelOverride>>();
 
   const numElements = numberingDoc.getElementsByTagName('w:num');
   for (const numElement of Array.from(numElements)) {
@@ -310,23 +365,57 @@ export const buildNumberingMaps = (numberingDoc: globalThis.Document) => {
     if (numId && abstractNumId) {
       numIdToAbstractNumId.set(numId, abstractNumId);
     }
+
+    if (numId) {
+      const levelOverrides = new Map<number, NumberingLevelOverride>();
+      const overrideElements = Array.from(numElement.getElementsByTagName('w:lvlOverride'));
+      for (const overrideElement of overrideElements) {
+        const ilvlValue = overrideElement.getAttribute('w:ilvl');
+        if (!ilvlValue) {
+          continue;
+        }
+
+        const startOverrideValue = overrideElement
+          .getElementsByTagName('w:startOverride')[0]
+          ?.getAttribute('w:val');
+        levelOverrides.set(parseInt(ilvlValue, 10), {
+          startOverride: startOverrideValue ? parseInt(startOverrideValue, 10) : undefined,
+        });
+      }
+
+      numIdToLevelOverrides.set(numId, levelOverrides);
+    }
   }
 
   const abstractNumElements = numberingDoc.getElementsByTagName('w:abstractNum');
   for (const abstractNumElement of Array.from(abstractNumElements)) {
     const abstractNumId = abstractNumElement.getAttribute('w:abstractNumId');
     const lvlElements = abstractNumElement.getElementsByTagName('w:lvl');
-    const formats = Array.from(lvlElements).map(lvlElement => ({
-      numFmt: lvlElement.getElementsByTagName('w:numFmt')[0]?.getAttribute('w:val') || '',
-      lvlText: lvlElement.getElementsByTagName('w:lvlText')[0]?.getAttribute('w:val') || '',
-    }));
+    const formats: NumberingLevelFormat[] = [];
+
+    for (const lvlElement of Array.from(lvlElements)) {
+      const ilvlValue = lvlElement.getAttribute('w:ilvl');
+      if (!ilvlValue) {
+        continue;
+      }
+
+      formats[parseInt(ilvlValue, 10)] = {
+        numFmt: lvlElement.getElementsByTagName('w:numFmt')[0]?.getAttribute('w:val') || '',
+        lvlText: lvlElement.getElementsByTagName('w:lvlText')[0]?.getAttribute('w:val') || '',
+        start: parseInt(lvlElement.getElementsByTagName('w:start')[0]?.getAttribute('w:val') || '1', 10),
+        lvlRestart: (() => {
+          const rawValue = lvlElement.getElementsByTagName('w:lvlRestart')[0]?.getAttribute('w:val');
+          return rawValue ? parseInt(rawValue, 10) : undefined;
+        })(),
+      };
+    }
 
     if (abstractNumId) {
       abstractNumIdToFormat.set(abstractNumId, formats);
     }
   }
 
-  return { numIdToAbstractNumId, abstractNumIdToFormat };
+  return { numIdToAbstractNumId, abstractNumIdToFormat, numIdToLevelOverrides };
 };
 
 /**
@@ -451,7 +540,8 @@ export const trackNumbering = (
   paragraphElement: Element,
   numIdToAbstractNumId: Map<string, string>,
   abstractNumIdToFormat: Map<string, NumberingLevelFormat[]>,
-  counters: number[]
+  counters: NumberingCounterState,
+  numIdToLevelOverrides?: Map<string, Map<number, NumberingLevelOverride>>
 ): string | undefined => {
   const paragraphNumbering = extractParagraphNumbering(paragraphElement);
   if (!paragraphNumbering) return undefined;
@@ -462,7 +552,9 @@ export const trackNumbering = (
   const formats = abstractNumIdToFormat.get(abstractNumId);
   if (!formats) return undefined;
 
-  return renderTrackedNumbering(paragraphNumbering.ilvl, formats, counters);
+  const resolvedCounters = resolveCounters(counters, paragraphNumbering.numId, formats.length || 9);
+  const levelOverride = numIdToLevelOverrides?.get(paragraphNumbering.numId)?.get(paragraphNumbering.ilvl);
+  return renderTrackedNumbering(paragraphNumbering.ilvl, formats, resolvedCounters, levelOverride);
 };
 
 /**
@@ -494,7 +586,8 @@ export const trackStyleNumbering = (
   styles: Map<string, StyleInfo>,
   numIdToAbstractNumId: Map<string, string>,
   abstractNumIdToFormat: Map<string, NumberingLevelFormat[]>,
-  counters: number[]
+  counters: NumberingCounterState,
+  numIdToLevelOverrides?: Map<string, Map<number, NumberingLevelOverride>>
 ): string | undefined => {
   const styleId = extractParagraphStyle(paragraphElement);
   if (!styleId) return undefined;
@@ -509,7 +602,9 @@ export const trackStyleNumbering = (
   if (!formats) return undefined;
 
   const ilvl = parseInt(styleNumbering.ilvl || '0', 10);
-  return renderTrackedNumbering(ilvl, formats, counters);
+  const resolvedCounters = resolveCounters(counters, styleNumbering.numId, formats.length || 9);
+  const levelOverride = numIdToLevelOverrides?.get(styleNumbering.numId)?.get(ilvl);
+  return renderTrackedNumbering(ilvl, formats, resolvedCounters, levelOverride);
 };
 
 /**

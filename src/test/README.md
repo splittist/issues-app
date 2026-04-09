@@ -39,6 +39,12 @@ We use **Vitest** for testing, which provides:
 - Style hierarchy resolution (resolveStyleNumbering, extractParagraphStyle)
 - Edge cases and error handling for all numbering functions
 
+### Extraction Numbering (`wordExtraction.test.ts`)
+- Carry-forward of the last rendered numbering string for later interesting paragraphs
+- Style-linked numbering resolved from `styles.xml` and `numbering.xml`
+- Fallback to section/page references when numbering metadata is absent
+- Target-behavior fixtures for restart and override handling (`it.fails`) to guide future OOXML parser work
+
 ## Running Tests
 
 ```bash
@@ -57,5 +63,6 @@ These tests focus on:
 3. **Basic component rendering** - Verifying UI components mount properly
 4. **Type safety** - Validating TypeScript interfaces and types
 5. **Automatic numbering** - Comprehensive testing of Word document numbering functionality
+6. **Extraction numbering behavior** - Coverage for rendered references plus queued restart/override gaps
 
 The tests are designed to be fast, reliable, and focused on the most critical functionality while serving as a foundation for future test expansion.

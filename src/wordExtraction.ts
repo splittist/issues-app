@@ -5,7 +5,9 @@ import {
   buildStyleMaps,
   extractParagraphStyle,
   extractParagraphText,
-  initializeCounters,
+  NumberingCounterState,
+  NumberingLevelFormat,
+  NumberingLevelOverride,
   resolveManualNumbering,
   StyleInfo,
   trackNumbering,
@@ -23,13 +25,30 @@ import {
 
 export type NumberingMaps = {
   numIdToAbstractNumId: Map<string, string>;
-  abstractNumIdToFormat: Map<string, { numFmt: string, lvlText: string }[]>;
+  abstractNumIdToFormat: Map<string, NumberingLevelFormat[]>;
+  numIdToLevelOverrides: Map<string, Map<number, NumberingLevelOverride>>;
 };
 
 type NumberingResolutionOptions = NumberingMaps & {
   styles?: Map<string, StyleInfo>;
-  directCounters: number[];
-  styleCounters?: number[];
+  directCounters: NumberingCounterState;
+  styleCounters?: NumberingCounterState;
+};
+
+export type CarryForwardResetContext = {
+  currentPage: number;
+  currentSection: number;
+  paragraphElement: Element;
+  paragraphText: string;
+  previousNumberingInfo: string;
+  styleId?: string;
+};
+
+export type NumberingBehaviorOptions = {
+  carryForward?: {
+    enabled?: boolean;
+    shouldReset?: (context: CarryForwardResetContext) => boolean;
+  };
 };
 
 const paragraphIsInteresting = (paragraph: Element, criteria: Criteria): boolean => {
@@ -65,14 +84,28 @@ const resolveParagraphNumbering = (
     styles,
     numIdToAbstractNumId,
     abstractNumIdToFormat,
+    numIdToLevelOverrides,
     directCounters,
     styleCounters = directCounters,
   }: NumberingResolutionOptions
 ): string | undefined => {
-  let numberingInfo = trackNumbering(paragraphElement, numIdToAbstractNumId, abstractNumIdToFormat, directCounters);
+  let numberingInfo = trackNumbering(
+    paragraphElement,
+    numIdToAbstractNumId,
+    abstractNumIdToFormat,
+    directCounters,
+    numIdToLevelOverrides
+  );
 
   if (!numberingInfo && styles) {
-    numberingInfo = trackStyleNumbering(paragraphElement, styles, numIdToAbstractNumId, abstractNumIdToFormat, styleCounters);
+    numberingInfo = trackStyleNumbering(
+      paragraphElement,
+      styles,
+      numIdToAbstractNumId,
+      abstractNumIdToFormat,
+      styleCounters,
+      numIdToLevelOverrides
+    );
   }
 
   if (numberingInfo) {
@@ -93,8 +126,8 @@ const processDocumentParagraphs = (
   sectionNumber: number,
   numberingMaps?: NumberingMaps,
   styles?: Map<string, StyleInfo>,
-  directCounters?: number[],
-  styleCounters?: number[],
+  directCounters?: NumberingCounterState,
+  styleCounters?: NumberingCounterState,
   extendedCommentsMap?: Map<string, ExtendedCommentInfo>
 ): ExtractedParagraph[] => {
   const paragraphs = Array.from(document.getElementsByTagName('w:p'));
@@ -130,7 +163,11 @@ const processDocumentParagraphs = (
   return extractedParagraphs;
 };
 
-export const extractParagraphs = async (file: File, criteria: Criteria): Promise<ExtractedParagraph[]> => {
+export const extractParagraphs = async (
+  file: File,
+  criteria: Criteria,
+  options?: NumberingBehaviorOptions
+): Promise<ExtractedParagraph[]> => {
   const arrayBuffer = await file.arrayBuffer();
   const zip = await JSZip.loadAsync(arrayBuffer);
   const documentXml = await getRequiredXmlDocument(zip, 'word/document.xml');
@@ -148,15 +185,18 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
     ? buildNumberingMaps(numberingXml)
     : {
         numIdToAbstractNumId: new Map<string, string>(),
-        abstractNumIdToFormat: new Map<string, { numFmt: string, lvlText: string }[]>(),
+        abstractNumIdToFormat: new Map<string, NumberingLevelFormat[]>(),
+        numIdToLevelOverrides: new Map<string, Map<number, NumberingLevelOverride>>(),
       };
   const styles = stylesXml ? buildStyleMaps(stylesXml) : new Map<string, StyleInfo>();
   const extendedCommentsMap = commentsExtendedXml ? parseExtendedComments(commentsExtendedXml) : undefined;
+  const carryForwardEnabled = options?.carryForward?.enabled ?? true;
+  const shouldResetCarryForward = options?.carryForward?.shouldReset;
 
   let currentSection = 1;
   let currentPage = 1;
-  const counters = initializeCounters(9);
-  const styleCounters = initializeCounters(9);
+  const counters = new Map<string, number[]>();
+  const styleCounters = new Map<string, number[]>();
   let previousNumberingInfo: string | null = null;
   const interestingParagraphs: ExtractedParagraph[] = [];
 
@@ -176,14 +216,29 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
       styleCounters,
     });
 
-    if (!numberingInfo && previousNumberingInfo) {
-      numberingInfo = previousNumberingInfo;
+    const styleId = extractParagraphStyle(paragraphElement);
+    const paragraphText = extractParagraphText(paragraphElement);
+
+    if (!numberingInfo && previousNumberingInfo && carryForwardEnabled) {
+      const resetCarryForward = shouldResetCarryForward?.({
+        currentPage,
+        currentSection,
+        paragraphElement,
+        paragraphText,
+        previousNumberingInfo,
+        styleId,
+      }) ?? false;
+
+      if (resetCarryForward) {
+        previousNumberingInfo = null;
+      } else {
+        numberingInfo = previousNumberingInfo;
+      }
     }
 
     if (paragraphIsInteresting(paragraphElement, criteria) && paragraphHasTextContent(paragraphElement)) {
       const allComments = buildParagraphAnnotations(paragraphElement, commentsXml, footnotesXml, endnotesXml, extendedCommentsMap);
       const documentParagraph = buildDocumentParagraph(paragraphElement);
-      const styleId = extractParagraphStyle(paragraphElement);
 
       interestingParagraphs.push({
         paragraph: documentParagraph,
@@ -202,7 +257,7 @@ export const extractParagraphs = async (file: File, criteria: Criteria): Promise
   }
 
   let sectionForHeaders = 1;
-  const headerFooterCounters = initializeCounters(9);
+  const headerFooterCounters = new Map<string, number[]>();
 
   for (const paragraphElement of allParagraphs) {
     if (paragraphElement.getElementsByTagName('w:sectPr').length === 0) {
