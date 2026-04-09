@@ -22,6 +22,7 @@ import {
   paragraphHasTextContent,
   parseExtendedComments,
 } from "./wordXml";
+import { NumberingBehaviorOptions, resolveCarryForwardPolicy } from "./wordNumberingPolicy";
 
 export type NumberingMaps = {
   numIdToAbstractNumId: Map<string, string>;
@@ -33,22 +34,6 @@ type NumberingResolutionOptions = NumberingMaps & {
   styles?: Map<string, StyleInfo>;
   directCounters: NumberingCounterState;
   styleCounters?: NumberingCounterState;
-};
-
-export type CarryForwardResetContext = {
-  currentPage: number;
-  currentSection: number;
-  paragraphElement: Element;
-  paragraphText: string;
-  previousNumberingInfo: string;
-  styleId?: string;
-};
-
-export type NumberingBehaviorOptions = {
-  carryForward?: {
-    enabled?: boolean;
-    shouldReset?: (context: CarryForwardResetContext) => boolean;
-  };
 };
 
 const paragraphIsInteresting = (paragraph: Element, criteria: Criteria): boolean => {
@@ -190,8 +175,7 @@ export const extractParagraphs = async (
       };
   const styles = stylesXml ? buildStyleMaps(stylesXml) : new Map<string, StyleInfo>();
   const extendedCommentsMap = commentsExtendedXml ? parseExtendedComments(commentsExtendedXml) : undefined;
-  const carryForwardEnabled = options?.carryForward?.enabled ?? true;
-  const shouldResetCarryForward = options?.carryForward?.shouldReset;
+  const carryForwardPolicy = resolveCarryForwardPolicy(options);
 
   let currentSection = 1;
   let currentPage = 1;
@@ -219,15 +203,15 @@ export const extractParagraphs = async (
     const styleId = extractParagraphStyle(paragraphElement);
     const paragraphText = extractParagraphText(paragraphElement);
 
-    if (!numberingInfo && previousNumberingInfo && carryForwardEnabled) {
-      const resetCarryForward = shouldResetCarryForward?.({
+    if (!numberingInfo && previousNumberingInfo && carryForwardPolicy.enabled) {
+      const resetCarryForward = carryForwardPolicy.shouldReset({
         currentPage,
         currentSection,
         paragraphElement,
         paragraphText,
         previousNumberingInfo,
         styleId,
-      }) ?? false;
+      });
 
       if (resetCarryForward) {
         previousNumberingInfo = null;
