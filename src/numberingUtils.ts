@@ -2,19 +2,134 @@
  * Utilities for handling Word document numbering and list formatting.
  */
 
+type NumberFormatter = (num: number) => string;
+
+type NumberingLevelFormat = {
+  lvlText: string;
+  numFmt: string;
+};
+
+type ManualNumberingPattern = {
+  pattern: RegExp;
+};
+
+const ROMAN_VALUES = [1, 4, 5, 9, 10, 40, 50, 90, 100, 400, 500, 900, 1000];
+const LOWER_ROMAN_NUMERALS = ['i', 'iv', 'v', 'ix', 'x', 'xl', 'l', 'xc', 'c', 'cd', 'd', 'cm', 'm'];
+const UPPER_ROMAN_NUMERALS = ['I', 'IV', 'V', 'IX', 'X', 'XL', 'L', 'XC', 'C', 'CD', 'D', 'CM', 'M'];
+
+const PERIOD_NUMBERING_PATTERNS: ManualNumberingPattern[] = [
+  { pattern: /^(\d+(?:\.\d+)*\.)\s+/ },
+  { pattern: /^([a-z]+\.)\s+/ },
+  { pattern: /^([A-Z]+\.)\s+/ },
+  { pattern: /^([ivxlcdm]+\.)\s+/ },
+  { pattern: /^([IVXLCDM]+\.)\s+/ },
+  { pattern: /^(\(\d+(?:\.\d+)*\))\s+/ },
+  { pattern: /^(\([a-z]+\))\s+/ },
+  { pattern: /^(\([A-Z]+\))\s+/ },
+  { pattern: /^(\([ivxlcdm]+\))\s+/ },
+  { pattern: /^(\([IVXLCDM]+\))\s+/ },
+];
+
+const WHITESPACE_DELIMITED_NUMBERING_PATTERNS: ManualNumberingPattern[] = [
+  { pattern: /^(\d+(?:\.\d+)*)(?:\t|\s{2,})/ },
+  { pattern: /^([a-z]{1,2})(?:\t|\s{2,})/ },
+  { pattern: /^([A-Z]{1,2})(?:\t|\s{2,})/ },
+  { pattern: /^([ivxlcdm]+)(?:\t|\s{2,})/ },
+  { pattern: /^([IVXLCDM]+)(?:\t|\s{2,})/ },
+];
+
+const MANUAL_NUMBERING_PATTERNS = [
+  ...PERIOD_NUMBERING_PATTERNS,
+  ...WHITESPACE_DELIMITED_NUMBERING_PATTERNS,
+];
+
+const formatNumberSequence = (counters: number[], formats: NumberingLevelFormat[], currentLevel: number): string[] => {
+  return counters.slice(0, currentLevel + 1).map((num, index) => {
+    const fmt = formats[index]?.numFmt || 'decimal';
+    return formatNumber(num, fmt);
+  });
+};
+
+const renderTrackedNumbering = (
+  level: number,
+  formats: NumberingLevelFormat[],
+  counters: number[]
+): string => {
+  updateCounters(counters, level);
+  const formattedNumbers = formatNumberSequence(counters, formats, level);
+  const currentFormat = formats[level];
+
+  if (currentFormat?.lvlText) {
+    return processLvlText(currentFormat.lvlText, formattedNumbers);
+  }
+
+  return formattedNumbers.join('.');
+};
+
+const buildAlphaSequence = (num: number, baseCharCode: number): string => {
+  let letter = '';
+
+  while (num > 0) {
+    const remainder = (num - 1) % 26;
+    letter = String.fromCharCode(baseCharCode + remainder) + letter;
+    num = Math.floor((num - 1) / 26);
+  }
+
+  return letter;
+};
+
+const toRoman = (num: number, numerals: string[]): string => {
+  let result = '';
+
+  for (let index = ROMAN_VALUES.length - 1; index >= 0; index--) {
+    while (num >= ROMAN_VALUES[index]) {
+      result += numerals[index];
+      num -= ROMAN_VALUES[index];
+    }
+  }
+
+  return result;
+};
+
+const hasManualNumberingWhitespace = (text: string): boolean => {
+  return /^[\t\s]{2,}/.test(text) || /^\t/.test(text);
+};
+
+const isRecognizedNumberingToken = (numberingText: string): boolean => {
+  return (
+    /^\d/.test(numberingText) ||
+    /^[a-z]{1,2}\.?$/.test(numberingText) ||
+    /^[A-Z]{1,2}\.?$/.test(numberingText) ||
+    /^[ivxlcdm]+\.?$/.test(numberingText) ||
+    /^[IVXLCDM]+\.?$/.test(numberingText) ||
+    /^\(\d/.test(numberingText) ||
+    /^\([a-z]{1,2}\)$/.test(numberingText) ||
+    /^\([A-Z]{1,2}\)$/.test(numberingText) ||
+    /^\([ivxlcdm]+\)$/.test(numberingText) ||
+    /^\([IVXLCDM]+\)$/.test(numberingText)
+  );
+};
+
+const extractParagraphNumbering = (
+  paragraphElement: Element
+): { ilvl: number; numId: string } | undefined => {
+  const numPrElement = paragraphElement.getElementsByTagName('w:numPr')[0];
+  if (!numPrElement) return undefined;
+
+  const numId = numPrElement.getElementsByTagName('w:numId')[0]?.getAttribute('w:val');
+  const ilvl = numPrElement.getElementsByTagName('w:ilvl')[0]?.getAttribute('w:val');
+  if (!numId || !ilvl) return undefined;
+
+  return { ilvl: parseInt(ilvl, 10), numId };
+};
+
 /**
  * Converts a number to a lowercase letter representation.
  * @param num - The number to convert.
  * @returns The lowercase letter representation of the number.
  */
 export const toLowerLetter = (num: number): string => {
-  let letter = '';
-  while (num > 0) {
-    const remainder = (num - 1) % 26;
-    letter = String.fromCharCode(97 + remainder) + letter;
-    num = Math.floor((num - 1) / 26);
-  }
-  return letter;
+  return buildAlphaSequence(num, 97);
 };
 
 /**
@@ -23,13 +138,7 @@ export const toLowerLetter = (num: number): string => {
  * @returns The uppercase letter representation of the number.
  */
 export const toUpperLetter = (num: number): string => {
-  let letter = '';
-  while (num > 0) {
-    const remainder = (num - 1) % 26;
-    letter = String.fromCharCode(65 + remainder) + letter;
-    num = Math.floor((num - 1) / 26);
-  }
-  return letter;
+  return buildAlphaSequence(num, 65);
 };
 
 /**
@@ -38,16 +147,7 @@ export const toUpperLetter = (num: number): string => {
  * @returns The lowercase Roman numeral representation of the number.
  */
 export const toLowerRoman = (num: number): string => {
-  const romanNumerals = ['i', 'iv', 'v', 'ix', 'x', 'xl', 'l', 'xc', 'c', 'cd', 'd', 'cm', 'm'];
-  const values = [1, 4, 5, 9, 10, 40, 50, 90, 100, 400, 500, 900, 1000];
-  let result = '';
-  for (let i = values.length - 1; i >= 0; i--) {
-    while (num >= values[i]) {
-      result += romanNumerals[i];
-      num -= values[i];
-    }
-  }
-  return result;
+  return toRoman(num, LOWER_ROMAN_NUMERALS);
 };
 
 /**
@@ -56,16 +156,7 @@ export const toLowerRoman = (num: number): string => {
  * @returns The uppercase Roman numeral representation of the number.
  */
 export const toUpperRoman = (num: number): string => {
-  const romanNumerals = ['I', 'IV', 'V', 'IX', 'X', 'XL', 'L', 'XC', 'C', 'CD', 'D', 'CM', 'M'];
-  const values = [1, 4, 5, 9, 10, 40, 50, 90, 100, 400, 500, 900, 1000];
-  let result = '';
-  for (let i = values.length - 1; i >= 0; i--) {
-    while (num >= values[i]) {
-      result += romanNumerals[i];
-      num -= values[i];
-    }
-  }
-  return result;
+  return toRoman(num, UPPER_ROMAN_NUMERALS);
 };
 
 /**
@@ -92,16 +183,16 @@ export const toCardinalText = (num: number): string => {
 
   if (num === 0) return 'zero';
   if (num < 0) return 'negative ' + toCardinalText(-num);
-  if (num >= 1000) return num.toString(); // Fallback for large numbers
+  if (num >= 1000) return num.toString();
 
   let result = '';
-  
+
   if (num >= 100) {
     result += hundreds[Math.floor(num / 100)];
     num %= 100;
     if (num > 0) result += ' ';
   }
-  
+
   if (num >= 20) {
     result += tens[Math.floor(num / 10)];
     num %= 10;
@@ -111,7 +202,7 @@ export const toCardinalText = (num: number): string => {
   } else if (num > 0) {
     result += ones[num];
   }
-  
+
   return result;
 };
 
@@ -123,12 +214,11 @@ export const toCardinalText = (num: number): string => {
 export const toOrdinalText = (num: number): string => {
   const ordinals = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth',
     'eleventh', 'twelfth', 'thirteenth', 'fourteenth', 'fifteenth', 'sixteenth', 'seventeenth', 'eighteenth', 'nineteenth', 'twentieth'];
-  
+
   if (num <= 20 && num > 0) {
     return ordinals[num];
   }
-  
-  // For numbers above 20, convert to cardinal text and modify the ending
+
   const cardinalText = toCardinalText(num);
   if (cardinalText.endsWith('one')) {
     return cardinalText.slice(0, -3) + 'first';
@@ -146,9 +236,9 @@ export const toOrdinalText = (num: number): string => {
     return cardinalText.slice(0, -6) + 'twelfth';
   } else if (cardinalText.endsWith('y')) {
     return cardinalText.slice(0, -1) + 'ieth';
-  } else {
-    return cardinalText + 'th';
   }
+
+  return cardinalText + 'th';
 };
 
 /**
@@ -160,6 +250,19 @@ export const toNumberInDash = (num: number): string => {
   return `- ${num} -`;
 };
 
+const NUMBER_FORMATTERS: Record<string, NumberFormatter> = {
+  bullet: () => '•',
+  cardinalText: toCardinalText,
+  decimal: (num: number) => num.toString(),
+  lowerLetter: toLowerLetter,
+  lowerRoman: toLowerRoman,
+  numberInDash: toNumberInDash,
+  ordinal: toOrdinal,
+  ordinalText: toOrdinalText,
+  upperLetter: toUpperLetter,
+  upperRoman: toUpperRoman,
+};
+
 /**
  * Formats a number according to the specified format.
  * @param num - The number to format.
@@ -167,30 +270,8 @@ export const toNumberInDash = (num: number): string => {
  * @returns The formatted number as a string.
  */
 export const formatNumber = (num: number, format: string): string => {
-  switch (format) {
-    case 'decimal':
-      return num.toString();
-    case 'lowerLetter':
-      return toLowerLetter(num);
-    case 'upperLetter':
-      return toUpperLetter(num);
-    case 'lowerRoman':
-      return toLowerRoman(num);
-    case 'upperRoman':
-      return toUpperRoman(num);
-    case 'bullet':
-      return '•';
-    case 'ordinal':
-      return toOrdinal(num);
-    case 'cardinalText':
-      return toCardinalText(num);
-    case 'ordinalText':
-      return toOrdinalText(num);
-    case 'numberInDash':
-      return toNumberInDash(num);
-    default:
-      return num.toString();
-  }
+  const formatter = NUMBER_FORMATTERS[format] || NUMBER_FORMATTERS.decimal;
+  return formatter(num);
 };
 
 /**
@@ -203,13 +284,13 @@ export const processLvlText = (template: string, formattedNumbers: string[]): st
   if (!template) {
     return formattedNumbers.join('.');
   }
-  
+
   let result = template;
   for (let i = 0; i < formattedNumbers.length; i++) {
     const placeholder = `%${i + 1}`;
     result = result.replace(new RegExp(placeholder, 'g'), formattedNumbers[i]);
   }
-  
+
   return result;
 };
 
@@ -220,7 +301,7 @@ export const processLvlText = (template: string, formattedNumbers: string[]): st
  */
 export const buildNumberingMaps = (numberingDoc: globalThis.Document) => {
   const numIdToAbstractNumId = new Map<string, string>();
-  const abstractNumIdToFormat = new Map<string, { numFmt: string, lvlText: string }[]>();
+  const abstractNumIdToFormat = new Map<string, NumberingLevelFormat[]>();
 
   const numElements = numberingDoc.getElementsByTagName('w:num');
   for (const numElement of Array.from(numElements)) {
@@ -235,11 +316,11 @@ export const buildNumberingMaps = (numberingDoc: globalThis.Document) => {
   for (const abstractNumElement of Array.from(abstractNumElements)) {
     const abstractNumId = abstractNumElement.getAttribute('w:abstractNumId');
     const lvlElements = abstractNumElement.getElementsByTagName('w:lvl');
-    const formats = Array.from(lvlElements).map(lvlElement => {
-      const numFmt = lvlElement.getElementsByTagName('w:numFmt')[0]?.getAttribute('w:val') || '';
-      const lvlText = lvlElement.getElementsByTagName('w:lvlText')[0]?.getAttribute('w:val') || '';
-      return { numFmt, lvlText };
-    });
+    const formats = Array.from(lvlElements).map(lvlElement => ({
+      numFmt: lvlElement.getElementsByTagName('w:numFmt')[0]?.getAttribute('w:val') || '',
+      lvlText: lvlElement.getElementsByTagName('w:lvlText')[0]?.getAttribute('w:val') || '',
+    }));
+
     if (abstractNumId) {
       abstractNumIdToFormat.set(abstractNumId, formats);
     }
@@ -273,8 +354,7 @@ export interface StyleInfo {
  */
 export const buildStyleMaps = (stylesDoc: globalThis.Document) => {
   const styles = new Map<string, StyleInfo>();
-  
-  // Parse all styles
+
   const styleElements = stylesDoc.getElementsByTagName('w:style');
   for (const styleElement of Array.from(styleElements)) {
     const styleId = styleElement.getAttribute('w:styleId');
@@ -282,11 +362,10 @@ export const buildStyleMaps = (stylesDoc: globalThis.Document) => {
     const styleName = nameElement?.getAttribute('w:val') || '';
     const basedOnElement = styleElement.getElementsByTagName('w:basedOn')[0];
     const basedOn = basedOnElement?.getAttribute('w:val');
-    
-    // Look for numbering in paragraph properties
+
     const pPrElement = styleElement.getElementsByTagName('w:pPr')[0];
     let numbering: StyleNumberingInfo | undefined;
-    
+
     if (pPrElement) {
       const numPrElement = pPrElement.getElementsByTagName('w:numPr')[0];
       if (numPrElement) {
@@ -295,7 +374,7 @@ export const buildStyleMaps = (stylesDoc: globalThis.Document) => {
         numbering = { numId, ilvl };
       }
     }
-    
+
     if (styleId) {
       styles.set(styleId, {
         id: styleId,
@@ -305,7 +384,7 @@ export const buildStyleMaps = (stylesDoc: globalThis.Document) => {
       });
     }
   }
-  
+
   return styles;
 };
 
@@ -318,22 +397,22 @@ export const buildStyleMaps = (stylesDoc: globalThis.Document) => {
 export const resolveStyleNumbering = (styleId: string, styles: Map<string, StyleInfo>): StyleNumberingInfo | undefined => {
   const visited = new Set<string>();
   let currentStyleId = styleId;
-  
+
   while (currentStyleId && !visited.has(currentStyleId)) {
     visited.add(currentStyleId);
     const style = styles.get(currentStyleId);
-    
+
     if (!style) {
       break;
     }
-    
+
     if (style.numbering) {
       return style.numbering;
     }
-    
+
     currentStyleId = style.basedOn || '';
   }
-  
+
   return undefined;
 };
 
@@ -368,38 +447,22 @@ export const updateCounters = (counters: number[], ilvl: number) => {
  * @param counters - The current counters.
  * @returns The numbering as a string or undefined.
  */
-export const trackNumbering = (paragraphElement: Element, numIdToAbstractNumId: Map<string, string>, abstractNumIdToFormat: Map<string, { numFmt: string, lvlText: string }[]>, counters: number[]): string | undefined => {
-  const numPrElement = paragraphElement.getElementsByTagName('w:numPr')[0];
-  if (!numPrElement) return undefined;
+export const trackNumbering = (
+  paragraphElement: Element,
+  numIdToAbstractNumId: Map<string, string>,
+  abstractNumIdToFormat: Map<string, NumberingLevelFormat[]>,
+  counters: number[]
+): string | undefined => {
+  const paragraphNumbering = extractParagraphNumbering(paragraphElement);
+  if (!paragraphNumbering) return undefined;
 
-  const numId = numPrElement.getElementsByTagName('w:numId')[0]?.getAttribute('w:val');
-  const ilvl = numPrElement.getElementsByTagName('w:ilvl')[0]?.getAttribute('w:val');
-  if (!numId || !ilvl) return undefined;
-
-  const abstractNumId = numIdToAbstractNumId.get(numId);
+  const abstractNumId = numIdToAbstractNumId.get(paragraphNumbering.numId);
   if (!abstractNumId) return undefined;
 
   const formats = abstractNumIdToFormat.get(abstractNumId);
   if (!formats) return undefined;
 
-  const currentLevel = parseInt(ilvl, 10);
-  counters = updateCounters(counters, currentLevel);
-  
-  // Get the formatted numbers for all levels up to current level
-  const formattedNumbers = counters.slice(0, currentLevel + 1)
-      .map((num, index) => {
-          const fmt = formats[index]?.numFmt || 'decimal';
-          return formatNumber(num, fmt);
-       });
-  
-  // Use the lvlText template for the current level if available
-  const currentFormat = formats[currentLevel];
-  if (currentFormat && currentFormat.lvlText) {
-    return processLvlText(currentFormat.lvlText, formattedNumbers);
-  }
-  
-  // Fallback to joining with dots if no lvlText template
-  return formattedNumbers.join('.');
+  return renderTrackedNumbering(paragraphNumbering.ilvl, formats, counters);
 };
 
 /**
@@ -410,10 +473,10 @@ export const trackNumbering = (paragraphElement: Element, numIdToAbstractNumId: 
 export const extractParagraphStyle = (paragraphElement: Element): string | undefined => {
   const pPrElement = paragraphElement.getElementsByTagName('w:pPr')[0];
   if (!pPrElement) return undefined;
-  
+
   const pStyleElement = pPrElement.getElementsByTagName('w:pStyle')[0];
   if (!pStyleElement) return undefined;
-  
+
   return pStyleElement.getAttribute('w:val') || undefined;
 };
 
@@ -427,42 +490,26 @@ export const extractParagraphStyle = (paragraphElement: Element): string | undef
  * @returns The numbering as a string or undefined.
  */
 export const trackStyleNumbering = (
-  paragraphElement: Element, 
+  paragraphElement: Element,
   styles: Map<string, StyleInfo>,
-  numIdToAbstractNumId: Map<string, string>, 
-  abstractNumIdToFormat: Map<string, { numFmt: string, lvlText: string }[]>, 
+  numIdToAbstractNumId: Map<string, string>,
+  abstractNumIdToFormat: Map<string, NumberingLevelFormat[]>,
   counters: number[]
 ): string | undefined => {
   const styleId = extractParagraphStyle(paragraphElement);
   if (!styleId) return undefined;
-  
+
   const styleNumbering = resolveStyleNumbering(styleId, styles);
-  if (!styleNumbering || !styleNumbering.numId) return undefined;
-  
+  if (!styleNumbering?.numId) return undefined;
+
   const abstractNumId = numIdToAbstractNumId.get(styleNumbering.numId);
   if (!abstractNumId) return undefined;
 
   const formats = abstractNumIdToFormat.get(abstractNumId);
   if (!formats) return undefined;
 
-  const ilvl = parseInt(styleNumbering.ilvl || "0", 10);
-  counters = updateCounters(counters, ilvl);
-  
-  // Get the formatted numbers for all levels up to current level
-  const formattedNumbers = counters.slice(0, ilvl + 1)
-      .map((num, index) => {
-          const fmt = formats[index]?.numFmt || 'decimal';
-          return formatNumber(num, fmt);
-       });
-  
-  // Use the lvlText template for the current level if available
-  const currentFormat = formats[ilvl];
-  if (currentFormat && currentFormat.lvlText) {
-    return processLvlText(currentFormat.lvlText, formattedNumbers);
-  }
-  
-  // Fallback to joining with dots if no lvlText template
-  return formattedNumbers.join('.');
+  const ilvl = parseInt(styleNumbering.ilvl || '0', 10);
+  return renderTrackedNumbering(ilvl, formats, counters);
 };
 
 /**
@@ -473,11 +520,10 @@ export const trackStyleNumbering = (
 export const extractParagraphText = (paragraphElement: Element): string => {
   const textRuns = Array.from(paragraphElement.getElementsByTagName('w:r'));
   let fullText = '';
-  
+
   for (const textRun of textRuns) {
-    // Process each child node in order to maintain proper sequence
     Array.from(textRun.childNodes).forEach(child => {
-      switch(child.nodeName) {
+      switch (child.nodeName) {
         case 'w:t':
         case 'w:delText':
           fullText += child.textContent || '';
@@ -486,18 +532,17 @@ export const extractParagraphText = (paragraphElement: Element): string => {
           fullText += '\t';
           break;
         default:
-          // Ignore other elements for now
           break;
       }
     });
   }
-  
+
   return fullText;
 };
 
 /**
  * Detects manual numbering patterns in paragraph text.
- * Looks for decimal, lower alpha, or lower roman numbering followed by tabs/spaces.
+ * Looks for decimal, alpha, or roman numbering followed by tabs/spaces.
  * @param paragraphText - The raw text content of the paragraph.
  * @returns The detected numbering string or undefined if no pattern is found.
  */
@@ -505,70 +550,21 @@ export const detectManualNumbering = (paragraphText: string): string | undefined
   if (!paragraphText || paragraphText.trim().length === 0) {
     return undefined;
   }
-  
-  // Regular expressions for different numbering patterns
-  const patterns = [
-    // Decimal numbering with period: "1.", "1.1.", "1.1.1.", etc. followed by whitespace
-    /^(\d+(?:\.\d+)*\.)\s+/,
-    
-    // Lower alpha numbering with period: "a.", "b.", "aa.", "ab.", etc. followed by whitespace
-    /^([a-z]+\.)\s+/,
-    
-    // Upper alpha numbering with period: "A.", "B.", "AA.", "AB.", etc. followed by whitespace
-    /^([A-Z]+\.)\s+/,
-    
-    // Lower roman numbering with period: "i.", "ii.", "iii.", "iv.", etc. followed by whitespace
-    /^([ivxlcdm]+\.)\s+/,
-    
-    // Upper roman numbering with period: "I.", "II.", "III.", "IV.", etc. followed by whitespace
-    /^([IVXLCDM]+\.)\s+/,
-    
-    // Parenthesized decimal: "(1)", "(2)", etc. followed by whitespace
-    /^(\(\d+(?:\.\d+)*\))\s+/,
-    
-    // Parenthesized lower alpha: "(a)", "(b)", etc. followed by whitespace
-    /^(\([a-z]+\))\s+/,
-    
-    // Parenthesized upper alpha: "(A)", "(B)", etc. followed by whitespace
-    /^(\([A-Z]+\))\s+/,
-    
-    // Parenthesized lower roman: "(i)", "(ii)", etc. followed by whitespace
-    /^(\([ivxlcdm]+\))\s+/,
-    
-    // Parenthesized upper roman: "(I)", "(II)", etc. followed by whitespace
-    /^(\([IVXLCDM]+\))\s+/,
-    
-    // Non-period patterns (require tab or multiple spaces to reduce false positives)
-    
-    // Decimal numbering without period: "1", "1.1", "1.1.1", etc. followed by tab or 2+ spaces
-    /^(\d+(?:\.\d+)*)(?:\t|\s{2,})/,
-    
-    // Lower alpha numbering without period: "a", "b", "aa", "ab", etc. followed by tab or 2+ spaces
-    /^([a-z]{1,2})(?:\t|\s{2,})/,
-    
-    // Upper alpha numbering without period: "A", "B", "AA", "AB", etc. followed by tab or 2+ spaces
-    /^([A-Z]{1,2})(?:\t|\s{2,})/,
-    
-    // Lower roman numbering without period: "i", "ii", "iii", "iv", etc. followed by tab or 2+ spaces
-    /^([ivxlcdm]+)(?:\t|\s{2,})/,
-    
-    // Upper roman numbering without period: "I", "II", "III", "IV", etc. followed by tab or 2+ spaces
-    /^([IVXLCDM]+)(?:\t|\s{2,})/
-  ];
-  
+
   const trimmedText = paragraphText.trim();
-  
-  for (const pattern of patterns) {
+
+  for (const { pattern } of MANUAL_NUMBERING_PATTERNS) {
     const match = trimmedText.match(pattern);
-    if (match) {
-      // Check if there's substantial content after the numbering
-      const remainingText = trimmedText.substring(match[0].length).trim();
-      if (remainingText.length > 0) {
-        return match[1]; // Return the numbering part without the trailing whitespace
-      }
+    if (!match) {
+      continue;
+    }
+
+    const remainingText = trimmedText.substring(match[0].length).trim();
+    if (remainingText.length > 0) {
+      return match[1];
     }
   }
-  
+
   return undefined;
 };
 
@@ -583,55 +579,39 @@ export const validateManualNumbering = (numberingText: string, paragraphText: st
   if (!numberingText || !paragraphText) {
     return false;
   }
-  
+
   const trimmedText = paragraphText.trim();
-  
-  // Must start with the numbering
   if (!trimmedText.startsWith(numberingText)) {
     return false;
   }
-  
-  // Get the text after the numbering
+
   const afterNumbering = trimmedText.substring(numberingText.length);
-  
-  // Should be followed by at least one tab or multiple spaces (more than 1)
-  const followedByWhitespace = /^[\t\s]{2,}/.test(afterNumbering) || /^\t/.test(afterNumbering);
-  
-  if (!followedByWhitespace) {
+  if (!hasManualNumberingWhitespace(afterNumbering)) {
     return false;
   }
-  
-  // Get the actual content after the whitespace
+
   const content = afterNumbering.replace(/^[\t\s]+/, '');
-  
-  // Must have substantial content (at least 3 characters)
   if (content.length < 3) {
     return false;
   }
-  
-  // Additional validation: the numbering shouldn't be too long
-  // (to avoid matching things like "www.example.com")
+
   if (numberingText.length > 10) {
     return false;
   }
-  
-  // Reject patterns that don't start with numbers or common numbering patterns
-  // This helps avoid matching things like "www." or other non-numbering text
-  const startsWithValidPattern = 
-    /^\d/.test(numberingText) ||                      // Starts with digit
-    /^[a-z]{1,2}\.?$/.test(numberingText) ||         // Lower alpha pattern (a., b., aa., ab., a, b, aa, ab)
-    /^[A-Z]{1,2}\.?$/.test(numberingText) ||         // Upper alpha pattern (A., B., AA., AB., A, B, AA, AB)
-    /^[ivxlcdm]+\.?$/.test(numberingText) ||         // Lower roman pattern (i., ii., i, ii, etc.)
-    /^[IVXLCDM]+\.?$/.test(numberingText) ||         // Upper roman pattern (I., II., I, II, etc.)
-    /^\(\d/.test(numberingText) ||                   // Parenthesized digit
-    /^\([a-z]{1,2}\)$/.test(numberingText) ||        // Parenthesized lower alpha
-    /^\([A-Z]{1,2}\)$/.test(numberingText) ||        // Parenthesized upper alpha
-    /^\([ivxlcdm]+\)$/.test(numberingText) ||        // Parenthesized lower roman
-    /^\([IVXLCDM]+\)$/.test(numberingText);          // Parenthesized upper roman
-  
-  if (!startsWithValidPattern) {
-    return false;
+
+  return isRecognizedNumberingToken(numberingText);
+};
+
+/**
+ * Resolves manual numbering only when both detection and validation succeed.
+ * @param paragraphText - The full paragraph text.
+ * @returns The validated numbering token or undefined.
+ */
+export const resolveManualNumbering = (paragraphText: string): string | undefined => {
+  const detectedNumbering = detectManualNumbering(paragraphText);
+  if (!detectedNumbering) {
+    return undefined;
   }
-  
-  return true;
+
+  return validateManualNumbering(detectedNumbering, paragraphText) ? detectedNumbering : undefined;
 };

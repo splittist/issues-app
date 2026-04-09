@@ -3,14 +3,13 @@ import { Criteria, ExtractedParagraph, ExtendedCommentInfo, ParagraphSource } fr
 import {
   buildNumberingMaps,
   buildStyleMaps,
-  detectManualNumbering,
   extractParagraphStyle,
   extractParagraphText,
   initializeCounters,
+  resolveManualNumbering,
   StyleInfo,
   trackNumbering,
   trackStyleNumbering,
-  validateManualNumbering,
 } from "./numberingUtils";
 import { buildParagraphAnnotations } from "./wordAnnotations";
 import {
@@ -81,13 +80,7 @@ const resolveParagraphNumbering = (
   }
 
   const paragraphText = extractParagraphText(paragraphElement);
-  const detectedNumbering = detectManualNumbering(paragraphText);
-
-  if (detectedNumbering && validateManualNumbering(detectedNumbering, paragraphText)) {
-    return detectedNumbering;
-  }
-
-  return undefined;
+  return resolveManualNumbering(paragraphText);
 };
 
 const processDocumentParagraphs = (

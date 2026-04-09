@@ -17,7 +17,9 @@ import { HLColor, ULType } from "./types";
  */
 export const buildRunProps = (runPropsElement: Element, style: string = ''): IRunOptions => {
   if (!runPropsElement) {
-    return {};
+    return {
+      style: style === '' ? undefined : style,
+    };
   };
   const bold = runPropsElement.getElementsByTagName('w:b').length > 0;
   const italics = runPropsElement.getElementsByTagName('w:i').length > 0;

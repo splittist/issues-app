@@ -18,8 +18,53 @@ import {
   extractParagraphStyle,
   extractParagraphText,
   detectManualNumbering,
-  validateManualNumbering
+  validateManualNumbering,
+  trackNumbering,
+  trackStyleNumbering
 } from '../numberingUtils'
+
+const createParagraphWithNumbering = (numId: string, ilvl: string): Element => {
+  const mockDoc = new DOMParser().parseFromString(`
+    <w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+      <w:pPr>
+        <w:numPr>
+          <w:ilvl w:val="${ilvl}" />
+          <w:numId w:val="${numId}" />
+        </w:numPr>
+      </w:pPr>
+    </w:p>
+  `, 'text/xml')
+
+  return mockDoc.documentElement
+}
+
+const createParagraphWithStyle = (styleId: string): Element => {
+  const mockDoc = new DOMParser().parseFromString(`
+    <w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+      <w:pPr>
+        <w:pStyle w:val="${styleId}" />
+      </w:pPr>
+    </w:p>
+  `, 'text/xml')
+
+  return mockDoc.documentElement
+}
+
+const createNumberingDocument = (xmlBody: string): globalThis.Document => {
+  return new DOMParser().parseFromString(`
+    <w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+      ${xmlBody}
+    </w:numbering>
+  `, 'text/xml')
+}
+
+const createStylesDocument = (xmlBody: string): globalThis.Document => {
+  return new DOMParser().parseFromString(`
+    <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+      ${xmlBody}
+    </w:styles>
+  `, 'text/xml')
+}
 
 describe('numberingUtils', () => {
   describe('toLowerLetter', () => {
@@ -338,6 +383,32 @@ describe('numberingUtils', () => {
       const result = buildNumberingMaps(mockDoc);
       expect(result.numIdToAbstractNumId.get('1')).toBe('0');
     })
+
+    it('should parse realistic numbering XML with multiple levels', () => {
+      const numberingDoc = createNumberingDocument(`
+        <w:abstractNum w:abstractNumId="10">
+          <w:lvl w:ilvl="0">
+            <w:numFmt w:val="decimal" />
+            <w:lvlText w:val="%1." />
+          </w:lvl>
+          <w:lvl w:ilvl="1">
+            <w:numFmt w:val="lowerLetter" />
+            <w:lvlText w:val="%1.%2." />
+          </w:lvl>
+        </w:abstractNum>
+        <w:num w:numId="7">
+          <w:abstractNumId w:val="10" />
+        </w:num>
+      `)
+
+      const result = buildNumberingMaps(numberingDoc)
+
+      expect(result.numIdToAbstractNumId.get('7')).toBe('10')
+      expect(result.abstractNumIdToFormat.get('10')).toEqual([
+        { numFmt: 'decimal', lvlText: '%1.' },
+        { numFmt: 'lowerLetter', lvlText: '%1.%2.' }
+      ])
+    })
   })
 
   describe('buildStyleMaps', () => {
@@ -370,6 +441,39 @@ describe('numberingUtils', () => {
       expect(result.size).toBe(1);
       expect(result.get('heading1')?.name).toBe('Heading 1');
       expect(result.get('heading1')?.numbering).toBeUndefined();
+    })
+
+    it('should parse style inheritance and numbering from realistic XML', () => {
+      const stylesDoc = createStylesDocument(`
+        <w:style w:type="paragraph" w:styleId="Heading1">
+          <w:name w:val="Heading 1" />
+          <w:pPr>
+            <w:numPr>
+              <w:ilvl w:val="0" />
+              <w:numId w:val="5" />
+            </w:numPr>
+          </w:pPr>
+        </w:style>
+        <w:style w:type="paragraph" w:styleId="Heading2">
+          <w:name w:val="Heading 2" />
+          <w:basedOn w:val="Heading1" />
+        </w:style>
+      `)
+
+      const result = buildStyleMaps(stylesDoc)
+
+      expect(result.get('Heading1')).toEqual({
+        id: 'Heading1',
+        name: 'Heading 1',
+        basedOn: undefined,
+        numbering: { numId: '5', ilvl: '0' }
+      })
+      expect(result.get('Heading2')).toEqual({
+        id: 'Heading2',
+        name: 'Heading 2',
+        basedOn: 'Heading1',
+        numbering: undefined
+      })
     })
   })
 
@@ -576,6 +680,152 @@ describe('numberingUtils', () => {
       expect(newBehavior).not.toBe(oldBehavior);
       expect(newBehavior).toContain('2.1'); // Contains the parent levels
       expect(newBehavior).toContain('(i)'); // Contains the current level with proper formatting
+    })
+  })
+
+  describe('trackNumbering sequences', () => {
+    it('should track numbering across nested paragraph sequences', () => {
+      const numIdToAbstractNumId = new Map([['1', 'abstract-1']])
+      const abstractNumIdToFormat = new Map([
+        ['abstract-1', [
+          { numFmt: 'decimal', lvlText: '%1.' },
+          { numFmt: 'decimal', lvlText: '%1.%2.' }
+        ]]
+      ])
+      const counters = initializeCounters(3)
+
+      const paragraphs = [
+        createParagraphWithNumbering('1', '0'),
+        createParagraphWithNumbering('1', '1'),
+        createParagraphWithNumbering('1', '1'),
+        createParagraphWithNumbering('1', '0'),
+      ]
+
+      const results = paragraphs.map(paragraph =>
+        trackNumbering(paragraph, numIdToAbstractNumId, abstractNumIdToFormat, counters)
+      )
+
+      expect(results).toEqual(['1.', '1.1.', '1.2.', '2.'])
+    })
+
+    it('should keep independent counters for separate numbering definitions', () => {
+      const numIdToAbstractNumId = new Map([
+        ['1', 'abstract-1'],
+        ['2', 'abstract-2']
+      ])
+      const abstractNumIdToFormat = new Map([
+        ['abstract-1', [{ numFmt: 'decimal', lvlText: '%1.' }]],
+        ['abstract-2', [{ numFmt: 'upperLetter', lvlText: '%1.' }]]
+      ])
+
+      const firstListCounters = initializeCounters(2)
+      const secondListCounters = initializeCounters(2)
+
+      const firstListResults = [
+        trackNumbering(createParagraphWithNumbering('1', '0'), numIdToAbstractNumId, abstractNumIdToFormat, firstListCounters),
+        trackNumbering(createParagraphWithNumbering('1', '0'), numIdToAbstractNumId, abstractNumIdToFormat, firstListCounters),
+      ]
+      const secondListResults = [
+        trackNumbering(createParagraphWithNumbering('2', '0'), numIdToAbstractNumId, abstractNumIdToFormat, secondListCounters),
+        trackNumbering(createParagraphWithNumbering('2', '0'), numIdToAbstractNumId, abstractNumIdToFormat, secondListCounters),
+      ]
+
+      expect(firstListResults).toEqual(['1.', '2.'])
+      expect(secondListResults).toEqual(['A.', 'B.'])
+    })
+
+    it('should support numbering restarts when a new list instance uses fresh counters', () => {
+      const numIdToAbstractNumId = new Map([
+        ['1', 'abstract-1'],
+        ['2', 'abstract-1']
+      ])
+      const abstractNumIdToFormat = new Map([
+        ['abstract-1', [{ numFmt: 'decimal', lvlText: '%1.' }]]
+      ])
+
+      const firstListCounters = initializeCounters(2)
+      const restartedListCounters = initializeCounters(2)
+
+      const firstListResults = [
+        trackNumbering(createParagraphWithNumbering('1', '0'), numIdToAbstractNumId, abstractNumIdToFormat, firstListCounters),
+        trackNumbering(createParagraphWithNumbering('1', '0'), numIdToAbstractNumId, abstractNumIdToFormat, firstListCounters),
+      ]
+      const restartedListResults = [
+        trackNumbering(createParagraphWithNumbering('2', '0'), numIdToAbstractNumId, abstractNumIdToFormat, restartedListCounters),
+        trackNumbering(createParagraphWithNumbering('2', '0'), numIdToAbstractNumId, abstractNumIdToFormat, restartedListCounters),
+      ]
+
+      expect(firstListResults).toEqual(['1.', '2.'])
+      expect(restartedListResults).toEqual(['1.', '2.'])
+    })
+  })
+
+  describe('trackStyleNumbering sequences', () => {
+    it('should track numbering for paragraphs that inherit numbering from styles', () => {
+      const styles = new Map([
+        ['Heading1', { id: 'Heading1', name: 'Heading 1', numbering: { numId: '1', ilvl: '0' } }],
+        ['Heading2', { id: 'Heading2', name: 'Heading 2', basedOn: 'Heading1', numbering: { numId: '1', ilvl: '1' } }]
+      ])
+      const numIdToAbstractNumId = new Map([['1', 'abstract-1']])
+      const abstractNumIdToFormat = new Map([
+        ['abstract-1', [
+          { numFmt: 'decimal', lvlText: '%1.' },
+          { numFmt: 'lowerLetter', lvlText: '%1.%2.' }
+        ]]
+      ])
+      const counters = initializeCounters(3)
+
+      const paragraphs = [
+        createParagraphWithStyle('Heading1'),
+        createParagraphWithStyle('Heading2'),
+        createParagraphWithStyle('Heading2'),
+        createParagraphWithStyle('Heading1'),
+      ]
+
+      const results = paragraphs.map(paragraph =>
+        trackStyleNumbering(paragraph, styles, numIdToAbstractNumId, abstractNumIdToFormat, counters)
+      )
+
+      expect(results).toEqual(['1.', '1.a.', '1.b.', '2.'])
+    })
+
+    it('should resolve numbering through inherited styles with realistic XML inputs', () => {
+      const stylesDoc = createStylesDocument(`
+        <w:style w:type="paragraph" w:styleId="Heading1">
+          <w:name w:val="Heading 1" />
+          <w:pPr>
+            <w:numPr>
+              <w:ilvl w:val="0" />
+              <w:numId w:val="9" />
+            </w:numPr>
+          </w:pPr>
+        </w:style>
+        <w:style w:type="paragraph" w:styleId="Heading2">
+          <w:name w:val="Heading 2" />
+          <w:basedOn w:val="Heading1" />
+        </w:style>
+      `)
+      const numberingDoc = createNumberingDocument(`
+        <w:abstractNum w:abstractNumId="3">
+          <w:lvl w:ilvl="0">
+            <w:numFmt w:val="decimal" />
+            <w:lvlText w:val="%1." />
+          </w:lvl>
+        </w:abstractNum>
+        <w:num w:numId="9">
+          <w:abstractNumId w:val="3" />
+        </w:num>
+      `)
+
+      const styles = buildStyleMaps(stylesDoc)
+      const { numIdToAbstractNumId, abstractNumIdToFormat } = buildNumberingMaps(numberingDoc)
+      const counters = initializeCounters(2)
+
+      const first = trackStyleNumbering(createParagraphWithStyle('Heading2'), styles, numIdToAbstractNumId, abstractNumIdToFormat, counters)
+      const second = trackStyleNumbering(createParagraphWithStyle('Heading2'), styles, numIdToAbstractNumId, abstractNumIdToFormat, counters)
+
+      expect(first).toBe('1.')
+      expect(second).toBe('2.')
     })
   })
 
