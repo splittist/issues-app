@@ -43,7 +43,9 @@ We use **Vitest** for testing, which provides:
 - Carry-forward of the last rendered numbering string for later interesting paragraphs
 - Style-linked numbering resolved from `styles.xml` and `numbering.xml`
 - Fallback to section/page references when numbering metadata is absent
-- Target-behavior fixtures for restart and override handling (`it.fails`) to guide future OOXML parser work
+- Numbering restarts across list instances and `startOverride` handling
+- `lvlRestart` behavior for lower levels that should continue across higher-level paragraphs
+- Configurable carry-forward reset policies for real-world heuristic tuning
 
 ## Running Tests
 
@@ -63,6 +65,6 @@ These tests focus on:
 3. **Basic component rendering** - Verifying UI components mount properly
 4. **Type safety** - Validating TypeScript interfaces and types
 5. **Automatic numbering** - Comprehensive testing of Word document numbering functionality
-6. **Extraction numbering behavior** - Coverage for rendered references plus queued restart/override gaps
+6. **Extraction numbering behavior** - Coverage for rendered references, restart semantics, and configurable reset heuristics
 
 The tests are designed to be fast, reliable, and focused on the most critical functionality while serving as a foundation for future test expansion.
