@@ -84,8 +84,8 @@ export const buildComments = (
 
     let extendedInfo: ExtendedCommentInfo | undefined;
     if (extendedCommentsMap && paragraphs.length > 0) {
-      const firstParagraph = paragraphs[0];
-      const paraId = firstParagraph.getAttribute('w14:paraId') || firstParagraph.getAttribute('paraId');
+      const lastParagraph = paragraphs[paragraphs.length - 1];
+      const paraId = lastParagraph.getAttribute('w14:paraId') || lastParagraph.getAttribute('paraId');
       if (paraId) {
         extendedInfo = extendedCommentsMap.get(paraId);
       }
