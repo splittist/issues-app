@@ -16,7 +16,7 @@ const App: React.FC = () => {
         <WordHandler />
       </header>
       <footer className="App-footer">
-        <Text variant='small'>© 2025 | All liability comprehensively disclaimed</Text>
+        <Text variant='small'>© 2026 | All liability comprehensively disclaimed</Text>
       </footer>
     </div>
   );
