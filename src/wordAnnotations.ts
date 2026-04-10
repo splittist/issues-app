@@ -18,12 +18,10 @@ const buildReferenceParagraph = (
   anchorText: string,
   anchorStyle: string,
   suffixText = ': ',
-  options?: ConstructorParameters<typeof Paragraph>[0]
+  options: ConstructorParameters<typeof Paragraph>[0] = {}
 ): Paragraph => {
-  const paragraphOptions = options ?? {};
-
   return new Paragraph({
-    ...paragraphOptions,
+    ...(options as object),
     children: [
       new TextRun({ text: anchorText, style: anchorStyle }),
       new TextRun({ text: suffixText, italics: true })

@@ -19,7 +19,7 @@ describe('App', () => {
 
   it('should render the copyright footer', () => {
     renderApp()
-    expect(screen.getByText('© 2025 | All liability comprehensively disclaimed')).toBeInTheDocument()
+    expect(screen.getByText('© 2026 | All liability comprehensively disclaimed')).toBeInTheDocument()
   })
 
   it('should render the main app structure', () => {
