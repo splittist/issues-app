@@ -148,25 +148,37 @@ export const buildTextRun = (runElement: Element, style = ''): TextRun[] => {
   return results.length > 0 ? results : [new TextRun({ text: '', ...runProps })];
 };
 
-export const buildDocumentParagraph = (paragraphElement: Element): Paragraph => {
-  const children = Array.from(paragraphElement.children).flatMap(child => {
-    switch (child.nodeName) {
-      case 'w:r':
-        return buildTextRun(child as Element);
-      case 'w:del':
-        return Array.from(child.getElementsByTagName('w:r')).flatMap(run => buildTextRun(run, "Deletion"));
-      case 'w:ins':
-        return Array.from(child.getElementsByTagName('w:r')).flatMap(run => buildTextRun(run, "Insertion"));
-      case 'w:moveFrom':
-        return Array.from(child.getElementsByTagName('w:r')).flatMap(run => buildTextRun(run, "MoveFrom"));
-      case 'w:moveTo':
-        return Array.from(child.getElementsByTagName('w:r')).flatMap(run => buildTextRun(run, "MoveTo"));
-      default:
-        return null;
-    }
-  }).filter(child => child !== null) as ParagraphChild[];
+type RevisionStyle = '' | 'Deletion' | 'Insertion' | 'MoveFrom' | 'MoveTo';
 
-  return new Paragraph({ children });
+const getRevisionStyle = (nodeName: string, currentStyle: RevisionStyle): RevisionStyle => {
+  switch (nodeName) {
+    case 'w:del':
+      return 'Deletion';
+    case 'w:ins':
+      return 'Insertion';
+    case 'w:moveFrom':
+      return 'MoveFrom';
+    case 'w:moveTo':
+      return 'MoveTo';
+    default:
+      return currentStyle;
+  }
+};
+
+const buildParagraphChildren = (element: Element, activeStyle: RevisionStyle = ''): ParagraphChild[] => {
+  if (element.nodeName === 'w:r') {
+    return buildTextRun(element, activeStyle);
+  }
+
+  const nextStyle = getRevisionStyle(element.nodeName, activeStyle);
+
+  return Array.from(element.children).flatMap(child =>
+    buildParagraphChildren(child as Element, nextStyle)
+  );
+};
+
+export const buildDocumentParagraph = (paragraphElement: Element): Paragraph => {
+  return new Paragraph({ children: buildParagraphChildren(paragraphElement) });
 };
 
 export const paragraphHasTextContent = (paragraphElement: Element): boolean => {

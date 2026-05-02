@@ -102,5 +102,41 @@ describe('wordXml', () => {
       expect(serializedParagraph).toContain('MoveFrom')
       expect(serializedParagraph).toContain('MoveTo')
     })
+
+    it('should keep revisions nested inside transparent wrapper elements', async () => {
+      const paragraphElement = getXmlElement(`
+        <w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+          <w:r>
+            <w:t>Start </w:t>
+          </w:r>
+          <w:hyperlink w:anchor="_Ref1">
+            <w:bookmarkStart w:id="1" w:name="_Ref1" />
+            <w:del>
+              <w:r>
+                <w:delText>Nested removed</w:delText>
+              </w:r>
+            </w:del>
+            <w:bookmarkEnd w:id="1" />
+          </w:hyperlink>
+          <w:customXml>
+            <w:ins>
+              <w:r>
+                <w:t>Nested added</w:t>
+              </w:r>
+            </w:ins>
+          </w:customXml>
+        </w:p>
+      `, 'w\\:p')
+
+      const paragraph = buildDocumentParagraph(paragraphElement)
+      const xml = await paragraphToXml(paragraph)
+      const serializedParagraph = JSON.stringify(paragraph)
+
+      expect(xml).toContain('Start ')
+      expect(xml).toContain('Nested removed')
+      expect(xml).toContain('Nested added')
+      expect(serializedParagraph).toContain('Deletion')
+      expect(serializedParagraph).toContain('Insertion')
+    })
   })
 })
